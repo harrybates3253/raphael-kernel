@@ -260,8 +260,15 @@ START=$(date +%s)
 set -o pipefail
 make -j"$JOBS" "${MAKE_ARGS[@]}" Image 2>&1 | tee "$WORK/build.log" | grep -E "error|Error|warning: .*(implicit|incompatible)|LD |CC |AS |Kernel: arch" || true
 set +o pipefail
-grep -qE "^  (Image|Kernel: arch/arm64/boot/Image) is ready" "$WORK/build.log" || \
-  [ -f "$OUT_REL/arch/arm64/boot/Image" ] || die "编译失败，看 $WORK/build.log（常见：clang 版本不兼容 → 换 --clang-dir / --llvm / --gcc）"
+if ! grep -qE "^  (Image|Kernel: arch/arm64/boot/Image) is ready" "$WORK/build.log" && \
+   [ ! -f "$OUT_REL/arch/arm64/boot/Image" ]; then
+  echo "================ build.log 里的错误行 ================"
+  grep -nE "error:|Error [0-9]|\*\*\*|undefined reference|No rule|not found" "$WORK/build.log" | tail -40 || true
+  echo "================ build.log 最后 120 行 ================"
+  tail -120 "$WORK/build.log" || true
+  echo "======================================================"
+  die "编译失败（上面的错误行就是真因；完整日志 $WORK/build.log，也随 artifact 上传）"
+fi
 ELAPSED=$(( $(date +%s) - START ))
 IMG="$TREE/$OUT_REL/arch/arm64/boot/Image"
 [ -f "$IMG" ] || die "没产出 $IMG"

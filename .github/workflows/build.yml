@@ -88,6 +88,19 @@ jobs:
             --defconfig "${{ inputs.defconfig }}" --ksu-tag "${{ inputs.ksu_tag }}" \
             -j "$(nproc)"
 
+      - name: Dump build log on failure
+        if: failure()
+        run: |
+          for f in work/build.log work/merge.log; do
+            [ -f "$f" ] || continue
+            echo "::group::$f"
+            echo "---- error lines ----"
+            grep -nE "error:|Error [0-9]|\*\*\*|undefined reference|No rule|MISSING|not found" "$f" | tail -60 || true
+            echo "---- tail 150 ----"
+            tail -150 "$f" || true
+            echo "::endgroup::"
+          done
+
       - name: Show result
         run: |
           ls -lh *.zip Image-* .config-* 2>/dev/null || true
