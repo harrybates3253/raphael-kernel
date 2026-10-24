@@ -66,6 +66,10 @@ while [ $# -gt 0 ]; do
   shift
 done
 
+# ARCH 必须在生成 .config 之前就 export：make raphael_stock_defconfig 会用 SRCARCH 去
+# arch/$(SRCARCH)/configs/ 找文件，不设 ARCH 就变成 arch/x86/configs -> 直接报 No rule
+export ARCH=arm64 SUBARCH=arm64
+
 log()  { printf '\033[1;36m[%s]\033[0m %s\n' "$(date +%H:%M:%S)" "$*"; }
 warn() { printf '\033[1;33m[WARN]\033[0m %s\n' "$*"; }
 die()  { printf '\033[1;31m[FAIL]\033[0m %s\n' "$*"; exit 1; }
@@ -204,7 +208,7 @@ if [ "$CHECK_ONLY" = 1 ]; then
 fi
 
 # ---------------- 6. 工具链 ----------------
-export ARCH=arm64 SUBARCH=arm64
+log "ARCH=$ARCH SUBARCH=$SUBARCH"
 case "$TOOLCHAIN_MODE" in
   gcc)
     command -v aarch64-linux-gnu-gcc >/dev/null || die "装 gcc-aarch64-linux-gnu"
