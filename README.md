@@ -51,7 +51,7 @@ cd ~/dsh-workspace/raphael-droidspaces-ksu
 | `verify.sh` | 只看不编：版本 / 补丁可打性 / fragment 相对 defconfig 改了什么 |
 | `flash-backup.sh` | boot 备份、推包刷入、回滚 |
 | `.github/workflows/build.yml` | 云端编译（ubuntu-22.04）：清盘 → 装依赖 → `--check` 闸门 → 编译 → 传 artifact → 发 Release |
-| `patch-ksu-legacy.py` | 让 KernelSU main(v3.x) 能在 4.14 arm64 编过：补 `syscall_fn_t` typedef、给 `MODULE_IMPORT_NS` 兜 no-op 宏（幂等） |
+| `patch-ksu-legacy.py` | 让 KernelSU main(v3.x) 在 4.14 arm64 编过（幂等）：补 `syscall_fn_t` typedef、`MODULE_IMPORT_NS` no-op 宏、`linux/pgtable.h`→`asm/pgtable.h` 等新头文件降级 |
 | `publish-to-github.sh` | 手机上一键：建仓库 / 推代码 / 触发 workflow / 等结果 / 下 zip（只用 git + curl + token） |
 
 ## 默认基线（实测）

@@ -252,6 +252,20 @@ case "$TOOLCHAIN_MODE" in
 esac
 
 # ---------------- 7. 编译 ----------------
+# 先单独编 KSU 子目录：KSU main 是按 5.x API 写的，跟 4.14 的兼容问题都在这里，
+# 单独编只要 1~2 分钟，比跑满 20 分钟才发现划算。
+if [ "$WITH_KSU" = 1 ]; then
+  log "单独编 drivers/kernelsu/（抓 KSU vs 4.14 的兼容问题，1~2 分钟）"
+  if ! make -j"$JOBS" "${MAKE_ARGS[@]}" drivers/kernelsu/ >"$WORK/ksu-smoke.log" 2>&1; then
+    echo "================ KSU 单独编译失败 ================"
+    grep -nE "error:|fatal error|\*\*\*|not found" "$WORK/ksu-smoke.log" | tail -30 || true
+    echo "---------------- 尾部 40 行 ----------------"
+    tail -40 "$WORK/ksu-smoke.log" || true
+    die "drivers/kernelsu/ 编不过（上面就是真因；补丁见 patch-ksu-legacy.py）"
+  fi
+  log "KSU 子目录编译通过"
+fi
+
 # 4.14.336 的 Makefile 里 backport 了一批 `-Werror=...`（strict-prototypes /
 # incompatible-pointer-types / implicit-int / designated-init / date-time），
 # 而 Qualcomm 这堆 2019 年的厂商代码（如 xiaomi_touch.c 的 `struct class *f()`）

@@ -56,7 +56,45 @@ if os.path.exists(SYS_HOOK):
 else:
     print("  WARN 找不到", SYS_HOOK)
 
-# ---- 2) MODULE_IMPORT_NS：谁用了就给谁在文件头定义 ----
+# ---- 2) 新内核才有的头文件，4.14 上换成等价写法 ----
+# 云端实测: feature/sucompat.c:8  fatal error: 'linux/pgtable.h' file not found
+#   linux/pgtable.h 是 5.8 才拆出来的，4.14 里 pgtable 定义在 asm/pgtable.h
+HEADER_MAP = {
+    "linux/pgtable.h":  ("#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)\n#include <linux/pgtable.h>\n#else\n#include <asm/pgtable.h>\n#endif",
+                         "KSU_LEGACY_INC_PGTABLE"),
+    "linux/umh.h":      ("#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 9, 0)\n#include <linux/umh.h>\n#else\n#include <linux/kmod.h>\n#endif",
+                         "KSU_LEGACY_INC_UMH"),
+    "linux/mmap_lock.h":("#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)\n#include <linux/mmap_lock.h>\n#else\n#define mmap_read_lock(mm) down_read(&(mm)->mmap_sem)\n#define mmap_read_unlock(mm) up_read(&(mm)->mmap_sem)\n#define mmap_write_lock(mm) down_write(&(mm)->mmap_sem)\n#define mmap_write_unlock(mm) up_write(&(mm)->mmap_sem)\n#endif",
+                         "KSU_LEGACY_INC_MMAPLOCK"),
+}
+
+import re
+files = []
+for dirpath, _dn, filenames in os.walk(ksu):
+    for fn in filenames:
+        if fn.endswith((".c", ".h")):
+            files.append(os.path.join(dirpath, fn))
+
+hdr_changed = []
+for pth in files:
+    txt = open(pth, encoding="utf-8", errors="replace").read()
+    orig = txt
+    for hdr, (repl, marker) in HEADER_MAP.items():
+        if marker in txt:
+            continue
+        # 同时处理 <> 和 "" 两种写法
+        for form in ('#include <%s>' % hdr, '#include "%s"' % hdr):
+            if form in txt:
+                block = "/* [%s] %s 在 4.14 上不存在 */\n#include <linux/version.h>\n%s" % (marker, hdr, repl)
+                txt = txt.replace(form, block, 1)
+    if txt != orig:
+        open(pth, "w", encoding="utf-8").write(txt)
+        hdr_changed.append(pth)
+
+for f in hdr_changed:
+    print("  header-patched:", os.path.relpath(f, root))
+
+# ---- 3) MODULE_IMPORT_NS：谁用了就给谁在文件头定义 ----
 targets = []
 for dirpath, _dirnames, filenames in os.walk(ksu):
     for fn in filenames:
@@ -82,4 +120,4 @@ for f in changed:
     print("  patched:", os.path.relpath(f, root))
 for f in skipped:
     print("  skip   :", os.path.relpath(f, root))
-print("  => %d 处插入, %d 处已存在" % (len(changed), len(skipped)))
+print("  => symbol %d 处, header %d 处, 已存在 %d 处" % (len(changed), len(hdr_changed), len(skipped)))
