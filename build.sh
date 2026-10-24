@@ -288,6 +288,9 @@ log "KCFLAGS=$KCFLAGS"
 # 与其硬改，不如自动回落到老版本 KSU（v1.0.5 那代就是给 4.14 写的）
 smoke_ksu() {   # $1 = 版本标签（仅用于打印）
   log "单独编 security/selinux + drivers/kernelsu（当前 $1，2~3 分钟）"
+  # 子目录单编没有顶层 vmlinux 那套生成物，先补 prepare + include/generated/compile.h
+  make -s -j"$JOBS" "${MAKE_ARGS[@]}" prepare >/dev/null 2>&1 || true
+  make -s -j"$JOBS" "${MAKE_ARGS[@]}" include/generated/compile.h >/dev/null 2>&1 || true
   # 先编 selinux：KSU 的 infra/file_wrapper.c 会 include selinux 内部头，
   # 而 flask.h 是编 security/selinux 时才生成的；只编 KSU 会假报 flask.h not found
   if ! make -j"$JOBS" "${MAKE_ARGS[@]}" security/selinux/ >"$WORK/ksu-smoke.log" 2>&1; then
@@ -301,6 +304,12 @@ smoke_ksu() {   # $1 = 版本标签（仅用于打印）
   fi
   echo "---------------- KSU($1) 编译错误 ----------------"
   grep -nE "error:|fatal error|\*\*\*" "$WORK/ksu-smoke.log" | tail -25 || true
+  # 只因为「子目录单编缺生成物」而挂（compile.h / flask.h），不算 KSU 的锅，放行去全量编
+  if grep -qE "generated/compile\.h|'flask\.h'" "$WORK/ksu-smoke.log" && \
+     ! grep -qE "error:" <(grep -vE "generated/compile\.h|flask\.h" "$WORK/ksu-smoke.log"); then
+    warn "smoke 只缺生成物（compile.h/flask.h），判定为不确定，直接进全量编译"
+    return 0
+  fi
   return 1
 }
 
