@@ -9,9 +9,10 @@
 # =============================================================================
 set -euo pipefail
 API="https://api.github.com"
-FULL=""; RUN_ID=""
+FULL=""; RUN_ID=""; WATCH=0
 for a in "$@"; do
   case "$a" in
+    --watch) WATCH=1 ;;
     -*) ;;
     *) if [[ "$a" =~ ^[0-9]{6,}$ ]]; then RUN_ID="$a"; else FULL="$a"; fi ;;
   esac
@@ -23,8 +24,18 @@ TOKEN="${GH_TOKEN:-}"
 [ -n "$TOKEN" ] || { printf '粘贴 GitHub token: '; read -rs TOKEN; echo; }
 [ -n "$TOKEN" ] || die "token 为空"
 AUTH=(-H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github+json")
+api_get() {
+  local path="$1" out i
+  for i in 1 2 3 4 5; do
+    if out="$(curl -sS --http1.1 --retry 2 --retry-all-errors -m 30 "${AUTH[@]}" "$API$path" 2>/dev/null)" && [ -n "$out" ]; then
+      printf '%s' "$out"; return 0
+    fi
+    sleep 3
+  done
+  return 1
+}
 
-LOGIN="$(curl -sS "${AUTH[@]}" "$API/user" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("login",""))')"
+LOGIN="$(api_get /user | python3 -c 'import sys,json;print(json.load(sys.stdin).get("login",""))')"
 [ -n "$LOGIN" ] || die "token 无效"
 [ -n "$FULL" ] || FULL="raphael-kernel"
 case "$FULL" in */*) ;; *) FULL="$LOGIN/$FULL" ;; esac
@@ -34,7 +45,7 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
 if [ -z "$RUN_ID" ]; then
-  curl -sS "${AUTH[@]}" "$API/repos/$FULL/actions/runs?per_page=5" -o "$TMP/runs.json"
+  api_get "/repos/$FULL/actions/runs?per_page=5" > "$TMP/runs.json" || die "拉 run 列表失败"
   say "最近几次运行："
   python3 - "$TMP/runs.json" <<'PY'
 import json,sys
@@ -54,7 +65,24 @@ fi
 [ -n "$RUN_ID" ] || die "没有 run"
 say "run $RUN_ID -> https://github.com/$FULL/actions/runs/$RUN_ID"
 
-curl -sS "${AUTH[@]}" "$API/repos/$FULL/actions/runs/$RUN_ID/jobs" -o "$TMP/jobs.json"
+if [ "$WATCH" = 1 ]; then
+  say "盯着 run $RUN_ID（Ctrl-C 退出，云端照跑）"
+  T0=$(date +%s); LAST=""
+  for i in $(seq 1 240); do
+    if J="$(api_get "/repos/$FULL/actions/runs/$RUN_ID")"; then
+      ST="$(printf '%s' "$J" | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d.get("status",""),d.get("conclusion") or "")')"
+      if [ "$ST" != "$LAST" ]; then
+        say "状态: $ST  （已等 $(( ($(date +%s)-T0)/60 )) 分钟）"; LAST="$ST"
+      fi
+      case "$ST" in completed*) break ;; esac
+    else
+      say "网络抖了一下，继续等"
+    fi
+    sleep 20
+  done
+fi
+
+api_get "/repos/$FULL/actions/runs/$RUN_ID/jobs" > "$TMP/jobs.json" || die "拉 jobs 失败"
 
 echo
 echo "===== 每个 step 的结论 ====="

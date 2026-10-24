@@ -29,6 +29,17 @@ done
 say()  { printf '\033[1;36m[%s]\033[0m %s\n' "$(date +%H:%M)" "$*"; }
 die()  { printf '\033[1;31m[FAIL]\033[0m %s\n' "$*"; exit 1; }
 jget() { python3 -c "import sys,json;d=json.load(sys.stdin);print($1)" 2>/dev/null; }
+# 容器到 api.github.com 会偶发 TLS 瞬断（unexpected eof），这里静默重试，不打断轮询
+api_get() {
+  local path="$1" out i
+  for i in 1 2 3 4 5; do
+    if out="$(curl -sS --http1.1 --retry 2 --retry-all-errors -m 30 "${AUTH[@]}" "$API$path" 2>/dev/null)" && [ -n "$out" ]; then
+      printf '%s' "$out"; return 0
+    fi
+    sleep 3
+  done
+  return 1
+}
 
 TOKEN="${GH_TOKEN:-}"
 if [ -z "$TOKEN" ]; then
@@ -38,7 +49,7 @@ fi
 AUTH=(-H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28")
 
 say "校验 token"
-LOGIN="$(curl -sS "${AUTH[@]}" "$API/user" | jget 'd["login"]')"
+LOGIN="$(api_get /user | jget 'd["login"]')"
 [ -n "$LOGIN" ] || die "token 无效（或没网）"
 say "登录身份: $LOGIN"
 
@@ -77,7 +88,7 @@ case "$CODE" in
 esac
 
 sleep 10
-RUN_ID="$(curl -sS "${AUTH[@]}" "$API/repos/$LOGIN/$REPO_NAME/actions/workflows/build.yml/runs?per_page=1" | jget 'd["workflow_runs"][0]["id"]')"
+RUN_ID="$(api_get "/repos/$LOGIN/$REPO_NAME/actions/workflows/build.yml/runs?per_page=1" | jget 'd["workflow_runs"][0]["id"]')"
 [ -n "$RUN_ID" ] || die "拿不到 run id"
 say "运行页: https://github.com/$LOGIN/$REPO_NAME/actions/runs/$RUN_ID"
 
@@ -85,14 +96,18 @@ say "运行页: https://github.com/$LOGIN/$REPO_NAME/actions/runs/$RUN_ID"
 
 say "等编译（约 25~40 分钟，Ctrl-C 退出云端照跑）"
 LAST=""
+T0=$(date +%s)
 for i in $(seq 1 180); do
-  J="$(curl -sS "${AUTH[@]}" "$API/repos/$LOGIN/$REPO_NAME/actions/runs/$RUN_ID" || true)"
-  ST="$(echo "$J" | jget 'd["status"]')"
-  CO="$(echo "$J" | jget 'd["conclusion"] or ""')"
-  if [ "$ST" != "$LAST" ]; then say "状态: $ST ${CO:-...}"; LAST="$ST"; fi
-  case "$ST" in
-    completed) break ;;
-  esac
+  if J="$(api_get "/repos/$LOGIN/$REPO_NAME/actions/runs/$RUN_ID")"; then
+    ST="$(echo "$J" | jget 'd["status"]')"
+    CO="$(echo "$J" | jget 'd["conclusion"] or ""')"
+    if [ "$ST" != "$LAST" ]; then
+      say "状态: ${ST:-?} ${CO:-...}  （已等 $(( ($(date +%s)-T0)/60 )) 分钟）"; LAST="$ST"
+    fi
+    case "$ST" in completed) break ;; esac
+  else
+    say "网络抖了一下（TLS 瞬断），继续轮询，云端编译不受影响"
+  fi
   sleep 20
 done
 
@@ -103,7 +118,7 @@ if [ "$CO" != "success" ]; then
 fi
 
 say "编译成功，下载产物"
-ART="$(curl -sS "${AUTH[@]}" "$API/repos/$LOGIN/$REPO_NAME/actions/runs/$RUN_ID/artifacts" | jget 'd["artifacts"][0]["archive_download_url"]')"
+ART="$(api_get "/repos/$LOGIN/$REPO_NAME/actions/runs/$RUN_ID/artifacts" | jget 'd["artifacts"][0]["archive_download_url"]')"
 if [ -n "$ART" ]; then
   curl -sSL -H "Authorization: Bearer $TOKEN" "$ART" -o /tmp/kernel-artifacts.zip
   unzip -o -q /tmp/kernel-artifacts.zip -d "$KIT" && say "产物已解压到 $KIT"
