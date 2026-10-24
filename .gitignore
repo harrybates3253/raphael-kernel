@@ -1,0 +1,6 @@
+work/
+*.zip
+*.zip.sha256
+Image-*
+.config-*
+boot-backup-*.img

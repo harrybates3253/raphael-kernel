@@ -1,0 +1,103 @@
+name: Build raphael Droidspaces+KSU kernel
+
+# 用法（手机浏览器就能走完）:
+#   1. GitHub 上新建仓库 -> 把本 kit 推上去（或直接在网页上传）
+#   2. 仓库 Actions 页 -> 左侧 "Build raphael Droidspaces+KSU kernel" -> Run workflow -> Run
+#   3. 约 25~40 分钟；完成后两种拿法：
+#      - Releases 里直接下 zip（推荐，手机可直接下载来刷）
+#      - Actions 运行页底部 Artifacts
+on:
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: "内核源码 repo"
+        default: "https://github.com/Laulan56/android_kernel_xiaomi_sm8150.git"
+      branch:
+        description: "分支"
+        default: "android14"
+      defconfig:
+        description: "基础 defconfig"
+        default: "raphael_stock_defconfig"
+      ksu_tag:
+        description: "KernelSU tag/commit（main = 最新）"
+        default: "main"
+      tag:
+        description: "产物 release 标签（留空自动用时间戳）"
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 150
+    env:
+      WORK: ${{ github.workspace }}/work
+    steps:
+      - name: Checkout kit
+        uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /usr/local/share/boost \
+                      "$AGENT_TOOLSDIRECTORY" 2>/dev/null || true
+          df -h /
+
+      - name: Install deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq build-essential bc bison flex libssl-dev libelf-dev \
+            lz4 cpio python3 curl unzip zip patch gcc-aarch64-linux-gnu git >/dev/null
+          gcc-aarch64-linux-gnu-gcc --version | head -1
+          df -h / | tail -1
+
+      - name: Configure + config gate (--check)
+        run: |
+          chmod +x build.sh verify.sh flash-backup.sh
+          ./build.sh --check \
+            --repo "${{ inputs.repo }}" --branch "${{ inputs.branch }}" \
+            --defconfig "${{ inputs.defconfig }}" --ksu-tag "${{ inputs.ksu_tag }}"
+          ./verify.sh --tree "work/${{ inputs.branch }}" --defconfig "${{ inputs.defconfig }}"
+
+      - name: Build Image + AnyKernel3 zip
+        run: |
+          ./build.sh \
+            --repo "${{ inputs.repo }}" --branch "${{ inputs.branch }}" \
+            --defconfig "${{ inputs.defconfig }}" --ksu-tag "${{ inputs.ksu_tag }}" \
+            -j "$(nproc)"
+
+      - name: Show result
+        run: |
+          ls -lh *.zip Image-* .config-* 2>/dev/null || true
+          cat *.zip.sha256 2>/dev/null || true
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: raphael-droidspaces-ksu
+          path: |
+            *.zip
+            *.zip.sha256
+            Image-*
+            .config-*
+            work/build.log
+            work/merge.log
+          if-no-files-found: warn
+
+      - name: Publish release
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ inputs.tag }}"
+          [ -n "$TAG" ] || TAG="raphael-$(date -u +%Y%m%d-%H%M)"
+          gh release create "$TAG" \
+            --title "$TAG  (raphael / droidspaces + ksu)" \
+            --notes "repo: ${{ inputs.repo }}
+          branch: ${{ inputs.branch }}
+          defconfig: ${{ inputs.defconfig }}
+          ksu: ${{ inputs.ksu_tag }}
+          刷前先备份 boot: adb shell \"su -c 'dd if=/dev/block/bootdevice/by-name/boot of=/sdcard/boot-backup.img'\"" \
+            *.zip *.zip.sha256 Image-* .config-* || true
