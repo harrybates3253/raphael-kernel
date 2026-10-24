@@ -73,11 +73,13 @@ die()  { printf '\033[1;31m[FAIL]\033[0m %s\n' "$*"; exit 1; }
 # ---------------- 0. 环境自检 ----------------
 need=(); for t in git make bc bison flex cpio lz4 python3 curl unzip patch; do command -v "$t" >/dev/null || need+=("$t"); done
 [ ${#need[@]} -eq 0 ] || die "缺命令: ${need[*]}  （Ubuntu: sudo apt install -y build-essential git bc bison flex libssl-dev libelf-dev lz4 cpio python3 curl unzip patch）"
-df -Pk "$WORK" 2>/dev/null | awk 'NR==2{print "[disk] '"$WORK"' 可用 "int($4/1048576)" GiB"}'
-FREE_G=$(df -Pk "$WORK" 2>/dev/null | awk 'NR==2{print int($4/1048576)}' || echo 0)
-[ "${FREE_G:-0}" -ge 12 ] || warn "可用空间 ${FREE_G}GiB < 12GiB，4.14 全量编译建议 ≥15GiB（含源码 + out）"
-
-mkdir -p "$WORK"
+mkdir -p "$WORK" || { echo "建不了工作目录 $WORK"; exit 1; }
+# 注意: 这里必须 mkdir 之后再 df，并且把 df 的失败吞掉 —— 以前 df 一个不存在的目录
+# 会在 set -euo pipefail 下静默 exit 1（stderr 被 2>/dev/null 吃掉，日志里什么都不剩）
+FREE_G="$(df -Pk "$WORK" 2>/dev/null | awk 'NR==2{print int($4/1048576)}' || true)"
+FREE_G="${FREE_G:-0}"
+log "工作目录: $WORK（可用 ${FREE_G}GiB）"
+[ "$FREE_G" -ge 12 ] || warn "可用空间 ${FREE_G}GiB < 12GiB，4.14 全量编译建议 ≥15GiB（含源码 + out）"
 
 # ---------------- 1. 源码 ----------------
 TREE="$TREE_DIR"
