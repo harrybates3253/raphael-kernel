@@ -227,8 +227,15 @@ case "$TOOLCHAIN_MODE" in
     else
       # 4.14 Qualcomm 树的老配方：clang 编译 + GNU 交叉 binutils/汇编
       command -v aarch64-linux-gnu-gcc >/dev/null || die "clang 模式仍需 gcc-aarch64-linux-gnu 提供 binutils：sudo apt install gcc-aarch64-linux-gnu"
+      # arm32 交叉 gcc 只有 vdso32 会用到；宿主没有就别硬塞，否则 make 直接报 command not found
+      ARM32_ARG=""
+      if command -v arm-linux-gnueabi-gcc >/dev/null; then
+        ARM32_ARG="CROSS_COMPILE_ARM32=arm-linux-gnueabi-"
+      else
+        warn "没有 arm-linux-gnueabi-gcc，跳过 CROSS_COMPILE_ARM32（ARM32 vdso 可能不编）"
+      fi
       MAKE_ARGS=(O="$OUT_REL" ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu-
-                 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi-)
+                 CROSS_COMPILE=aarch64-linux-gnu- $ARM32_ARG)
     fi
     ;;
 esac

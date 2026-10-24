@@ -97,10 +97,9 @@ for i in $(seq 1 180); do
 done
 
 if [ "$CO" != "success" ]; then
-  say "结论: ${CO:-unknown}，拉失败日志尾巴："
-  LOGURL="$(curl -sS "${AUTH[@]}" "$API/repos/$LOGIN/$REPO_NAME/actions/runs/$RUN_ID/jobs" | jget 'd["jobs"][0]["logs_url"]' || true)"
-  [ -n "$LOGURL" ] && curl -sSL -H "Authorization: Bearer $TOKEN" "$LOGURL" | tail -40
-  die "云端编译失败，先看上面的日志尾部"
+  say "结论: ${CO:-unknown}，开始定位失败步骤："
+  GH_TOKEN="$TOKEN" "$KIT/diagnose.sh" "$REPO_NAME" "$RUN_ID" || true
+  die "云端编译失败（上面是逐 step 结论 + 日志尾部）"
 fi
 
 say "编译成功，下载产物"
