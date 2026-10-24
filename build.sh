@@ -133,6 +133,11 @@ if [ "$WITH_KSU" = 1 ]; then
     [ -d drivers/kernelsu ] || die "KernelSU 未落到 drivers/kernelsu"
   fi
   # 非 GKI 4.14 只有 kprobe 一条路，KPROBES 必须开（第 4 步的 fragment 已写）
+
+  # KSU main(v3.x) 按 4.17+/5.4+ 的 API 写的，4.14 arm64 上会差两个符号：
+  #   syscall_fn_t（4.17 才有 typedef）、MODULE_IMPORT_NS（5.4 才有宏）
+  log "打 KSU 4.14 兼容补丁"
+  python3 "$KIT_DIR/patch-ksu-legacy.py" "$TREE" || warn "KSU 兼容补丁没打成，编译可能报 syscall_fn_t / MODULE_IMPORT_NS"
 fi
 
 # ---------------- 4. 合并 config ----------------

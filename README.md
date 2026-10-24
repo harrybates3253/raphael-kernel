@@ -51,6 +51,7 @@ cd ~/dsh-workspace/raphael-droidspaces-ksu
 | `verify.sh` | 只看不编：版本 / 补丁可打性 / fragment 相对 defconfig 改了什么 |
 | `flash-backup.sh` | boot 备份、推包刷入、回滚 |
 | `.github/workflows/build.yml` | 云端编译（ubuntu-22.04）：清盘 → 装依赖 → `--check` 闸门 → 编译 → 传 artifact → 发 Release |
+| `patch-ksu-legacy.py` | 让 KernelSU main(v3.x) 能在 4.14 arm64 编过：补 `syscall_fn_t` typedef、给 `MODULE_IMPORT_NS` 兜 no-op 宏（幂等） |
 | `publish-to-github.sh` | 手机上一键：建仓库 / 推代码 / 触发 workflow / 等结果 / 下 zip（只用 git + curl + token） |
 
 ## 默认基线（实测）
@@ -74,4 +75,5 @@ cd ~/dsh-workspace/raphael-droidspaces-ksu
 1. **clang 不兼容** → 换 `--llvm`、`--gcc`、`--clang-dir`；4.14 常见是汇编器报 `unknown directive`。
 2. **配置闸门 MISSING** → 该树没有这个符号，或依赖没满足。看 `work/*/out/.config`，缺的多半是 `CONFIG_IPC_NS`（依赖 SYSVIPC）。
 3. **刷完 wifi/相机没了** → 内核与 `/vendor/lib/modules` 的 vermagic 对不上。属于 4.14 换核必然风险，回滚备份 boot 即可。
-4. **开机就重启** → kprobe 在这棵树上坏（极少见）；或用 `--ksu-tag` 换旧版本。
+4. **开机就重启** → kprobe 在这棵树上坏（极少见）；或用 `--ksu-tag v1.0.5` 换旧版本（老版本自带 4.14 兼容，不需要 shim）。
+5. **`unknown type name 'syscall_fn_t'` / `MODULE_IMPORT_NS` 报错** → `patch-ksu-legacy.py` 没跑上；手动 `python3 patch-ksu-legacy.py <内核树根>`。
