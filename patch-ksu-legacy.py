@@ -94,6 +94,33 @@ for pth in files:
 for f in hdr_changed:
     print("  header-patched:", os.path.relpath(f, root))
 
+# ---- 2.5) 用户态拷贝函数的版本差 ----
+# 云端实测: hook/syscall_event_bridge.c  implicit declaration of 'strncpy_from_user'
+#           feature/sucompat.c        implicit declaration of 'strncpy_from_user_nofault'
+#   -> 前者只是少 include；后者是 5.0 才有的函数，4.14 上用 strncpy_from_user 等价兜住
+NOFAULT_BLOCK = """/* [ksu-legacy-shim: KSU_LEGACY_STRNCPY_NOFAULT] strncpy_from_user_nofault 是 5.0 才有的 */
+#include <linux/version.h>
+#include <linux/uaccess.h>
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0)
+#define strncpy_from_user_nofault(dst, src, count) strncpy_from_user(dst, src, count)
+#endif
+"""
+
+extra = []
+for pth in files:
+    txt = open(pth, encoding="utf-8", errors="replace").read()
+    orig = txt
+    if "strncpy_from_user_nofault(" in txt and "KSU_LEGACY_STRNCPY_NOFAULT" not in txt:
+        txt = NOFAULT_BLOCK + txt
+    elif "strncpy_from_user(" in txt and "#include <linux/uaccess.h>" not in txt \
+         and 'include "linux/uaccess.h"' not in txt:
+        txt = "/* [ksu-legacy-shim: KSU_LEGACY_UACCESS_INC] */\n#include <linux/uaccess.h>\n" + txt
+    if txt != orig:
+        open(pth, "w", encoding="utf-8").write(txt)
+        extra.append(pth)
+for f in extra:
+    print("  uaccess/nofault-patched:", os.path.relpath(f, root))
+
 # ---- 3) MODULE_IMPORT_NS：谁用了就给谁在文件头定义 ----
 targets = []
 for dirpath, _dirnames, filenames in os.walk(ksu):

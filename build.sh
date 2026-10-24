@@ -43,6 +43,7 @@ WITH_KSU=1
 TOOLCHAIN_MODE="clang"      # clang | llvm | gcc
 CLANG_DIR=""
 DEVICE_NAMES="raphael cepheus"
+KSU_FALLBACKS="${KSU_FALLBACKS:-v1.0.5 v2.1.2}"   # main 在 4.14 上编不过时依次尝试
 
 # ---------------- 参数 ----------------
 while [ $# -gt 0 ]; do
@@ -55,6 +56,7 @@ while [ $# -gt 0 ]; do
     --branch) BRANCH="$2"; shift ;;
     --defconfig) DEFCONFIG="$2"; shift ;;
     --ksu-tag) KSU_TAG="$2"; shift ;;
+    --ksu-fallbacks) KSU_FALLBACKS="$2"; shift ;;
     --tree) TREE_DIR="$2"; shift ;;
     --out) OUT_REL="$2"; shift ;;
     --jobs|-j) JOBS="$2"; shift ;;
@@ -123,21 +125,32 @@ apply_patch "$KIT_DIR/patches/02.fix_restore_cgroup_file_prefix_handling_.patch"
 apply_patch "$KIT_DIR/patches/01.fix_kernel_panic_in_xt_qtaguid.patch"
 
 # ---------------- 3. KernelSU ----------------
-if [ "$WITH_KSU" = 1 ]; then
-  if [ -d drivers/kernelsu ] || [ -L drivers/kernelsu ]; then
-    log "KernelSU 已集成，跳过"
+# 做成函数是因为 main 在 4.14 上编不过时要能原地换 tag（见第 7 段 smoke）
+setup_ksu() {   # $1 = tag/分支
+  local tag="$1"
+  if [ -d KernelSU/.git ]; then
+    log "切换 KernelSU -> $tag"
+    ( cd KernelSU
+      git fetch --tags --quiet 2>/dev/null || true
+      git checkout -q "$tag" 2>/dev/null || \
+      git checkout -q -B "$tag" "origin/$tag" 2>/dev/null || \
+      git checkout -q -B "$tag" "$tag" 2>/dev/null || { echo "  切不到 $tag"; exit 1; } ) || return 1
   else
-    log "集成 KernelSU ($KSU_TAG)"
-    curl -LSs "$KSU_SETUP_URL" -o "$WORK/ksu-setup.sh" || die "下载 setup.sh 失败"
-    sh "$WORK/ksu-setup.sh" "$KSU_TAG" || die "setup.sh 执行失败"
-    [ -d drivers/kernelsu ] || die "KernelSU 未落到 drivers/kernelsu"
+    log "集成 KernelSU ($tag)"
+    curl -LSs "$KSU_SETUP_URL" -o "$WORK/ksu-setup.sh" || return 1
+    sh "$WORK/ksu-setup.sh" "$tag" || return 1
+    [ -L drivers/kernelsu ] || [ -d drivers/kernelsu ] || return 1
   fi
-  # 非 GKI 4.14 只有 kprobe 一条路，KPROBES 必须开（第 4 步的 fragment 已写）
+  # 4.14 兼容：syscall_fn_t / MODULE_IMPORT_NS / linux/pgtable.h 等
+  python3 "$KIT_DIR/patch-ksu-legacy.py" "$TREE" >"$WORK/ksu-shim.log" 2>&1 && \
+    log "KSU 兼容补丁: $(tail -1 "$WORK/ksu-shim.log")" || warn "KSU 兼容补丁有告警，见 $WORK/ksu-shim.log"
+  return 0
+}
 
-  # KSU main(v3.x) 按 4.17+/5.4+ 的 API 写的，4.14 arm64 上会差两个符号：
-  #   syscall_fn_t（4.17 才有 typedef）、MODULE_IMPORT_NS（5.4 才有宏）
-  log "打 KSU 4.14 兼容补丁"
-  python3 "$KIT_DIR/patch-ksu-legacy.py" "$TREE" || warn "KSU 兼容补丁没打成，编译可能报 syscall_fn_t / MODULE_IMPORT_NS"
+KSU_USED=""
+if [ "$WITH_KSU" = 1 ]; then
+  setup_ksu "$KSU_TAG" || die "KernelSU($KSU_TAG) 集成失败"
+  KSU_USED="$KSU_TAG"
 fi
 
 # ---------------- 4. 合并 config ----------------
@@ -252,20 +265,6 @@ case "$TOOLCHAIN_MODE" in
 esac
 
 # ---------------- 7. 编译 ----------------
-# 先单独编 KSU 子目录：KSU main 是按 5.x API 写的，跟 4.14 的兼容问题都在这里，
-# 单独编只要 1~2 分钟，比跑满 20 分钟才发现划算。
-if [ "$WITH_KSU" = 1 ]; then
-  log "单独编 drivers/kernelsu/（抓 KSU vs 4.14 的兼容问题，1~2 分钟）"
-  if ! make -j"$JOBS" "${MAKE_ARGS[@]}" drivers/kernelsu/ >"$WORK/ksu-smoke.log" 2>&1; then
-    echo "================ KSU 单独编译失败 ================"
-    grep -nE "error:|fatal error|\*\*\*|not found" "$WORK/ksu-smoke.log" | tail -30 || true
-    echo "---------------- 尾部 40 行 ----------------"
-    tail -40 "$WORK/ksu-smoke.log" || true
-    die "drivers/kernelsu/ 编不过（上面就是真因；补丁见 patch-ksu-legacy.py）"
-  fi
-  log "KSU 子目录编译通过"
-fi
-
 # 4.14.336 的 Makefile 里 backport 了一批 `-Werror=...`（strict-prototypes /
 # incompatible-pointer-types / implicit-int / designated-init / date-time），
 # 而 Qualcomm 这堆 2019 年的厂商代码（如 xiaomi_touch.c 的 `struct class *f()`）
@@ -274,6 +273,37 @@ fi
 # 所以 `-Wno-error=xxx` 能盖住它们，且不用改源码。
 export KCFLAGS="${KCFLAGS:--Wno-error=strict-prototypes -Wno-error=incompatible-pointer-types -Wno-error=implicit-int}"
 log "KCFLAGS=$KCFLAGS"
+
+# 先单独编 KSU 子目录（1~2 分钟），KSU main 的 LSM hook / syscall dispatcher 是按
+# 4.17+ 的 security_hook_heads(hlist) 写的，4.14 上是 list_head，语义级不兼容 ->
+# 与其硬改，不如自动回落到老版本 KSU（v1.0.5 那代就是给 4.14 写的）
+smoke_ksu() {   # $1 = 版本标签（仅用于打印）
+  log "单独编 drivers/kernelsu/（当前 $1，1~2 分钟）"
+  if make -j"$JOBS" "${MAKE_ARGS[@]}" drivers/kernelsu/ >"$WORK/ksu-smoke.log" 2>&1; then
+    log "KSU($1) 子目录编译通过"
+    return 0
+  fi
+  echo "---------------- KSU($1) 编译错误 ----------------"
+  grep -nE "error:|fatal error|\*\*\*" "$WORK/ksu-smoke.log" | tail -25 || true
+  return 1
+}
+
+if [ "$WITH_KSU" = 1 ]; then
+  if ! smoke_ksu "$KSU_USED"; then
+    for T in $KSU_FALLBACKS; do
+      log "KernelSU $KSU_USED 编不过，换 $T 重试"
+      if setup_ksu "$T"; then
+        make -s O="$OUT_REL" olddefconfig >/dev/null 2>&1 || true
+        if smoke_ksu "$T"; then KSU_USED="$T"; break; fi
+      fi
+    done
+    if ! smoke_ksu "$KSU_USED"; then
+      die "KSU 各版本都编不过（$KSU_TAG / $KSU_FALLBACKS），完整日志 $WORK/ksu-smoke.log"
+    fi
+  fi
+  log "最终使用的 KernelSU: $KSU_USED"
+fi
+
 log "开始编译 Image  (jobs=$JOBS, mode=$TOOLCHAIN_MODE)"
 START=$(date +%s)
 set -o pipefail
