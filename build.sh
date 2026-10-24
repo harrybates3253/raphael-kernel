@@ -43,7 +43,7 @@ WITH_KSU=1
 TOOLCHAIN_MODE="clang"      # clang | llvm | gcc
 CLANG_DIR=""
 DEVICE_NAMES="raphael cepheus"
-KSU_FALLBACKS="${KSU_FALLBACKS:-v1.0.5 v2.1.2}"   # main 在 4.14 上编不过时依次尝试
+KSU_FALLBACKS="${KSU_FALLBACKS:-v1.0.5 v1.0.4 v2.1.2}"   # main 在 4.14 上编不过时依次尝试
 
 # ---------------- 参数 ----------------
 while [ $# -gt 0 ]; do
@@ -132,9 +132,12 @@ setup_ksu() {   # $1 = tag/分支
     log "切换 KernelSU -> $tag"
     ( cd KernelSU
       git fetch --tags --quiet 2>/dev/null || true
-      git checkout -q "$tag" 2>/dev/null || \
-      git checkout -q -B "$tag" "origin/$tag" 2>/dev/null || \
-      git checkout -q -B "$tag" "$tag" 2>/dev/null || { echo "  切不到 $tag"; exit 1; } ) || return 1
+      # -f：上次打的兼容补丁是本地改动，不强制丢弃会导致 checkout 失败
+      git checkout -q -f "$tag" 2>/dev/null || \
+      git checkout -q -f -B "$tag" "origin/$tag" 2>/dev/null || \
+      git checkout -q -f -B "$tag" "refs/tags/$tag" 2>/dev/null || \
+        { echo "  切不到 $tag（现有 tag: $(git tag | tail -5 | tr '\n' ' ')）"; exit 1; }
+      git log -1 --format='  当前 KernelSU: %h %s' ) || return 1
   else
     log "集成 KernelSU ($tag)"
     curl -LSs "$KSU_SETUP_URL" -o "$WORK/ksu-setup.sh" || return 1
@@ -278,8 +281,15 @@ log "KCFLAGS=$KCFLAGS"
 # 4.17+ 的 security_hook_heads(hlist) 写的，4.14 上是 list_head，语义级不兼容 ->
 # 与其硬改，不如自动回落到老版本 KSU（v1.0.5 那代就是给 4.14 写的）
 smoke_ksu() {   # $1 = 版本标签（仅用于打印）
-  log "单独编 drivers/kernelsu/（当前 $1，1~2 分钟）"
-  if make -j"$JOBS" "${MAKE_ARGS[@]}" drivers/kernelsu/ >"$WORK/ksu-smoke.log" 2>&1; then
+  log "单独编 security/selinux + drivers/kernelsu（当前 $1，2~3 分钟）"
+  # 先编 selinux：KSU 的 infra/file_wrapper.c 会 include selinux 内部头，
+  # 而 flask.h 是编 security/selinux 时才生成的；只编 KSU 会假报 flask.h not found
+  if ! make -j"$JOBS" "${MAKE_ARGS[@]}" security/selinux/ >"$WORK/ksu-smoke.log" 2>&1; then
+    echo "---------------- security/selinux 编不过（smoke 前置失败） ----------------"
+    grep -nE "error:|fatal error|\*\*\*" "$WORK/ksu-smoke.log" | tail -15 || true
+    return 1
+  fi
+  if make -j"$JOBS" "${MAKE_ARGS[@]}" drivers/kernelsu/ >>"$WORK/ksu-smoke.log" 2>&1; then
     log "KSU($1) 子目录编译通过"
     return 0
   fi
