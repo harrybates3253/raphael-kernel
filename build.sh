@@ -247,6 +247,14 @@ case "$TOOLCHAIN_MODE" in
 esac
 
 # ---------------- 7. 编译 ----------------
+# 4.14.336 的 Makefile 里 backport 了一批 `-Werror=...`（strict-prototypes /
+# incompatible-pointer-types / implicit-int / designated-init / date-time），
+# 而 Qualcomm 这堆 2019 年的厂商代码（如 xiaomi_touch.c 的 `struct class *f()`）
+# 根本没按这些规矩写 -> 直接报 error。
+# KCFLAGS 在 Makefile 第 1037 行才拼进 KBUILD_CFLAGS，位置在那些 -Werror 之后，
+# 所以 `-Wno-error=xxx` 能盖住它们，且不用改源码。
+export KCFLAGS="${KCFLAGS:--Wno-error=strict-prototypes -Wno-error=incompatible-pointer-types -Wno-error=implicit-int}"
+log "KCFLAGS=$KCFLAGS"
 log "开始编译 Image  (jobs=$JOBS, mode=$TOOLCHAIN_MODE)"
 START=$(date +%s)
 set -o pipefail
