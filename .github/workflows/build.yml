@@ -21,6 +21,14 @@ on:
       ksu_tag:
         description: "KernelSU tag/commit（main = 最新）"
         default: "main"
+      clang:
+        description: "clang 版本（4.14 老树编不过时换它）"
+        default: "clang-r416183b1"
+        type: choice
+        options:
+          - clang-r416183b1
+          - clang-r450784d
+          - clang-r487747c
       tag:
         description: "产物 release 标签（留空自动用时间戳）"
         default: ""
@@ -48,11 +56,13 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq build-essential bc bison flex libssl-dev libelf-dev \
-            lz4 cpio python3 curl unzip zip patch gcc-aarch64-linux-gnu git >/dev/null
+            lz4 cpio python3 curl unzip zip patch gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi git >/dev/null
           gcc-aarch64-linux-gnu-gcc --version | head -1
           df -h / | tail -1
 
       - name: Configure + config gate (--check)
+        env:
+          CLANG_VER: ${{ inputs.clang }}
         run: |
           chmod +x build.sh verify.sh flash-backup.sh
           ./build.sh --check \
@@ -61,6 +71,8 @@ jobs:
           ./verify.sh --tree "work/${{ inputs.branch }}" --defconfig "${{ inputs.defconfig }}"
 
       - name: Build Image + AnyKernel3 zip
+        env:
+          CLANG_VER: ${{ inputs.clang }}
         run: |
           ./build.sh \
             --repo "${{ inputs.repo }}" --branch "${{ inputs.branch }}" \

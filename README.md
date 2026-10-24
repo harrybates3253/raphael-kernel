@@ -18,8 +18,27 @@
 ./flash-backup.sh flash ./raphael-4.14*.zip
 ```
 
-没有电脑也行：把本目录 push 到自己 GitHub 仓库 → Actions → `Build raphael Droidspaces+KSU kernel` → Run workflow
-→ 跑完在 Artifacts 里下 zip。见 `.github/workflows/build.yml`。
+
+## 云编译（手机就能走完全程）
+
+**方式 1：一条命令（推荐）**
+
+```bash
+# 先在手机浏览器建 token: github.com/settings/tokens -> classic -> 勾 repo + workflow
+cd ~/dsh-workspace/raphael-droidspaces-ksu
+./publish-to-github.sh            # 粘 token -> 自动建仓库/推代码/触发/等结果/下 zip
+```
+
+**方式 2：全手动（不碰命令行）**
+
+1. github.com/new → 建 public 仓库（名字随意，例 `raphael-kernel`）
+2. 把这个目录的 6 个文件传上去；`.github/workflows/build.yml` 用网页的
+   「Add file → Create new file」，文件名直接敲 `.github/workflows/build.yml`（会自动建目录），内容贴进去
+3. 仓库 → Actions → 左侧 `Build raphael Droidspaces+KSU kernel` → Run workflow → Run
+4. 25~40 分钟后：**Releases** 里直接下 zip（手机浏览器可下），或 Actions 运行页底部 Artifacts
+
+云端参数默认已填好：`Laulan56/android_kernel_xiaomi_sm8150@android14` + `raphael_stock_defconfig` + KSU main。
+换 clang 就在 Run workflow 表单里选 `clang-r450784d` / `clang-r487747c` 重跑。
 
 ## 文件
 
@@ -31,7 +50,8 @@
 | `patches/01.fix_kernel_panic_in_xt_qtaguid.patch` | 3.18/4.4 才有意义；4.14.336 树里连 `xt_qtaguid.c` 都没有，脚本会自动跳过 |
 | `verify.sh` | 只看不编：版本 / 补丁可打性 / fragment 相对 defconfig 改了什么 |
 | `flash-backup.sh` | boot 备份、推包刷入、回滚 |
-| `.github/workflows/build.yml` | 云端编译，手机/电脑都不需要 |
+| `.github/workflows/build.yml` | 云端编译（ubuntu-22.04）：清盘 → 装依赖 → `--check` 闸门 → 编译 → 传 artifact → 发 Release |
+| `publish-to-github.sh` | 手机上一键：建仓库 / 推代码 / 触发 workflow / 等结果 / 下 zip（只用 git + curl + token） |
 
 ## 默认基线（实测）
 

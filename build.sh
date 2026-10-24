@@ -195,6 +195,12 @@ if [ "$WITH_KSU" = 1 ] && ! grep -q "CONFIG_KPROBES=y" "$CFG"; then
 fi
 log "配置闸门全过"
 
+# --check 到这里就停：配置已经验完，不用再下 300MB clang
+if [ "$CHECK_ONLY" = 1 ]; then
+  log "--check 结束（未编译）。配置产物: $TREE/$CFG"
+  exit 0
+fi
+
 # ---------------- 6. 工具链 ----------------
 export ARCH=arm64 SUBARCH=arm64
 case "$TOOLCHAIN_MODE" in
@@ -226,11 +232,6 @@ case "$TOOLCHAIN_MODE" in
     fi
     ;;
 esac
-
-if [ "$CHECK_ONLY" = 1 ]; then
-  log "--check 结束。配置产物: $TREE/$CFG"
-  exit 0
-fi
 
 # ---------------- 7. 编译 ----------------
 log "开始编译 Image  (jobs=$JOBS, mode=$TOOLCHAIN_MODE)"
