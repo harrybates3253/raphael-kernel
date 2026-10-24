@@ -19,8 +19,8 @@ on:
         description: "基础 defconfig"
         default: "raphael_stock_defconfig"
       ksu_tag:
-        description: "KernelSU tag/commit（main = 最新）"
-        default: "main"
+        description: "KernelSU tag/commit（master = backslashxx 分支最新）"
+        default: "master"
       clang:
         description: "clang 版本（4.14 老树编不过时换它）"
         default: "clang-r416183b1"

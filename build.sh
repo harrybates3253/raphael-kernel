@@ -29,8 +29,10 @@ set -euo pipefail
 REPO="${REPO:-https://github.com/Laulan56/android_kernel_xiaomi_sm8150.git}"
 BRANCH="${BRANCH:-android14}"
 DEFCONFIG="${DEFCONFIG:-raphael_stock_defconfig}"
-KSU_TAG="${KSU_TAG:-main}"
-KSU_SETUP_URL="${KSU_SETUP_URL:-https://raw.githubusercontent.com/tiann/KernelSU/refs/heads/main/kernel/setup.sh}"
+KSU_TAG="${KSU_TAG:-master}"
+# 默认用 backslashxx/KernelSU（即社区里说的 "KernelSU-by-xx"）：它带 kernel/kernel_compat.h，
+# 官方 tiann main 的 LSM hook / syscall dispatcher / selinux_state 全是 4.17+ 的写法，4.14 编不过
+KSU_SETUP_URL="${KSU_SETUP_URL:-https://raw.githubusercontent.com/backslashxx/KernelSU/refs/heads/master/kernel/setup.sh}"
 CLANG_VER="${CLANG_VER:-clang-r416183b1}"
 CLANG_URL_BASE="${CLANG_URL_BASE:-https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/android12-qpr3-release}"
 JOBS="${JOBS:-$(nproc)}"
@@ -43,7 +45,7 @@ WITH_KSU=1
 TOOLCHAIN_MODE="clang"      # clang | llvm | gcc
 CLANG_DIR=""
 DEVICE_NAMES="raphael cepheus"
-KSU_FALLBACKS="${KSU_FALLBACKS:-v1.0.5 v1.0.4 v2.1.2}"   # main 在 4.14 上编不过时依次尝试
+KSU_FALLBACKS="${KSU_FALLBACKS:-}"   # main 在 4.14 上编不过时依次尝试
 
 # ---------------- 参数 ----------------
 while [ $# -gt 0 ]; do
@@ -144,9 +146,13 @@ setup_ksu() {   # $1 = tag/分支
     sh "$WORK/ksu-setup.sh" "$tag" || return 1
     [ -L drivers/kernelsu ] || [ -d drivers/kernelsu ] || return 1
   fi
-  # 4.14 兼容：syscall_fn_t / MODULE_IMPORT_NS / linux/pgtable.h 等
-  python3 "$KIT_DIR/patch-ksu-legacy.py" "$TREE" >"$WORK/ksu-shim.log" 2>&1 && \
-    log "KSU 兼容补丁: $(tail -1 "$WORK/ksu-shim.log")" || warn "KSU 兼容补丁有告警，见 $WORK/ksu-shim.log"
+  # 分支自带 kernel_compat.h（backslashxx 分支）就不用我们的 shim，避免重复 typedef
+  if [ -f drivers/kernelsu/kernel_compat.h ]; then
+    log "KSU 自带 kernel/kernel_compat.h，跳过 4.14 shim"
+  else
+    python3 "$KIT_DIR/patch-ksu-legacy.py" "$TREE" >"$WORK/ksu-shim.log" 2>&1 && \
+      log "KSU 兼容补丁: $(tail -1 "$WORK/ksu-shim.log")" || warn "KSU 兼容补丁有告警，见 $WORK/ksu-shim.log"
+  fi
   return 0
 }
 

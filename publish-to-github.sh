@@ -80,7 +80,7 @@ say "已推送: https://github.com/$LOGIN/$REPO_NAME"
 say "触发云端编译"
 CODE="$(curl -sS -o /tmp/gh_disp.json -w '%{http_code}' -X POST "${AUTH[@]}" \
   "$API/repos/$LOGIN/$REPO_NAME/actions/workflows/build.yml/dispatches" \
-  -d '{"ref":"main","inputs":{"repo":"https://github.com/Laulan56/android_kernel_xiaomi_sm8150.git","branch":"android14","defconfig":"raphael_stock_defconfig","ksu_tag":"main","tag":""}}')"
+  -d '{"ref":"main","inputs":{"repo":"https://github.com/Laulan56/android_kernel_xiaomi_sm8150.git","branch":"android14","defconfig":"raphael_stock_defconfig","ksu_tag":"master","tag":""}}')"
 case "$CODE" in
   204) say "已触发" ;;
   404) die "触发 404：仓库还没启用 Actions，或 workflow 文件没推上去（看 https://github.com/$LOGIN/$REPO_NAME/actions）" ;;
