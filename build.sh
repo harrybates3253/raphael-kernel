@@ -154,6 +154,7 @@ setup_ksu() {   # $1 = tag/分支
     sub="$(git config -f .gitmodules --get-regexp 'path' | awk '/kernelsu/{print $2; exit}')"
     log "KSU 子模块: ${sub:-drivers/staging/kernelsu} @ $(git -C "${sub:-.}" rev-parse --short HEAD 2>/dev/null || echo unknown)"
     KSU_USED="submodule:$(git -C "${sub:-.}" rev-parse --short HEAD 2>/dev/null || echo pinned)"
+    KSU_MODE="submodule"
     return 0
   fi
   if [ -d KernelSU/.git ]; then
@@ -183,6 +184,7 @@ setup_ksu() {   # $1 = tag/分支
 }
 
 KSU_USED=""
+KSU_MODE="external"
 # 树内自带 KSU 子模块时，无论要不要 KSU 都得把子模块拉下来，
 # 否则 drivers/staging/Kconfig 里的 source 指向空目录，连 defconfig 都过不去
 if [ -f .gitmodules ] && grep -qi "kernelsu" .gitmodules; then
@@ -211,6 +213,17 @@ if [ "$WITH_KSU" = 0 ]; then
   { echo ""; echo "# ---- no-ksu: 子模块在，但不启用 ----"; echo "# CONFIG_KSU is not set"; } \
     >> arch/arm64/configs/vendor/droidspaces.config
 fi
+if [ "${KSU_MODE:-external}" = "submodule" ]; then
+  # 树内这版 KSU 的 ksud.c 是这么写的：
+  #   #ifdef CONFIG_KPROBES ... static work_struct ...  #else bool ksu_vfs_read_hook/... #endif
+  # 也就是说开了 KPROBES 就【不定义】那三个 bool，而树里 fs/read_write.c、fs/exec.c、
+  # input.c 是无条件引用它们的 -> 链接 undefined reference。Rikka 本人必然是 KPROBES=n 编的。
+  sed -i -e '/^CONFIG_KPROBES=/d' -e '/^CONFIG_HAVE_KPROBES=/d' -e '/^CONFIG_KPROBE_EVENTS=/d' \
+    arch/arm64/configs/vendor/droidspaces.config
+  { echo ""; echo "# 树内 KSU 走 manual hook（ksud.c 的 bools），必须关 KPROBES"; echo "# CONFIG_KPROBES is not set"; } \
+    >> arch/arm64/configs/vendor/droidspaces.config
+  log "检测到树内 KSU：fragment 已关闭 KPROBES（避免 ksud.c 不定义 hook bools）"
+fi
 log "生成 .config: $DEFCONFIG + droidspaces fragment"
 if ! make O="$OUT_REL" "$DEFCONFIG" >"$WORK/defconfig.log" 2>&1; then
   echo "================ make $DEFCONFIG 失败，输出如下 ================"
@@ -236,7 +249,12 @@ check_opt() {
 MUST_Y="CONFIG_SYSVIPC CONFIG_POSIX_MQUEUE CONFIG_NAMESPACES CONFIG_PID_NS CONFIG_UTS_NS CONFIG_IPC_NS
 CONFIG_SECCOMP CONFIG_SECCOMP_FILTER CONFIG_CGROUPS CONFIG_CGROUP_DEVICE CONFIG_CGROUP_PIDS CONFIG_MEMCG
 CONFIG_DEVTMPFS CONFIG_OVERLAY_FS CONFIG_TMPFS_XATTR CONFIG_NET_NS CONFIG_VETH CONFIG_BRIDGE
-CONFIG_USER_NS CONFIG_MACVLAN CONFIG_IP6_NF_NAT CONFIG_KPROBES CONFIG_KALLSYMS_ALL CONFIG_MODULES"
+CONFIG_USER_NS CONFIG_MACVLAN CONFIG_IP6_NF_NAT CONFIG_KALLSYMS_ALL CONFIG_MODULES"
+if [ "${KSU_MODE:-external}" != "submodule" ]; then
+  MUST_Y="$MUST_Y CONFIG_KPROBES"
+else
+  MUST_Y="$MUST_Y CONFIG_KSU"
+fi
 MUST_N="CONFIG_MODULE_SIG CONFIG_ANDROID_PARANOID_NETWORK"
 # int 型、无默认值的符号：空值会让 silentoldconfig 直接 aborted
 MUST_SET="CONFIG_LITTLE_CPU_MASK CONFIG_BIG_CPU_MASK CONFIG_PRIME_CPU_MASK"
