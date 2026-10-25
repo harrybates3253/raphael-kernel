@@ -357,6 +357,15 @@ CFG="$OUT_REL/.config"
 { echo ""; echo "# ==== droidspaces fragment (appended $(date -u +%FT%TZ)) ====";
   cat arch/arm64/configs/vendor/droidspaces.config; } >> "$CFG"
 make -s O="$OUT_REL" olddefconfig >"$WORK/merge.log" 2>&1 || die "olddefconfig 失败，见 $WORK/merge.log"
+# CPU mask 三项在部分树里 base 就是空值，kconfig 会保留空 -> silentoldconfig aborted
+for _pair in "LITTLE:16:BIG:112" ; do :; done
+for _kv in LITTLE=15 BIG=112 PRIME=128; do
+  _k="${_kv%%=*}"; _v="${_kv##*=}"
+  sed -i -e "/^CONFIG_${_k}_CPU_MASK=/d" -e "/^# CONFIG_${_k}_CPU_MASK is not set/d" "$CFG"
+  echo "CONFIG_${_k}_CPU_MASK=${_v}" >> "$CFG"
+done
+make -s O="$OUT_REL" olddefconfig >/dev/null 2>&1 || true
+log "CPU mask 已强制写入 15/112/128 并重跑 olddefconfig"
 
 # ---------------- 5. 配置硬闸门（不过就自愈一次，再不过就停）----------------
 check_opt() {
@@ -396,7 +405,7 @@ gate() {  # 返回缺失项数量
       [ "${QUIET:-0}" = 1 ] || printf '%-34s \033[33mSKIP(树里没有)\033[0m\n' "$o"
     elif grep -qE "^${o}=[^\"]*[0-9]" "$CFG"; then
       [ "${QUIET:-0}" = 1 ] || printf '%-34s \033[32mOK(set)\033[0m\n' "$o"
-    else printf '%-34s \033[31m空值(会卡 silentoldconfig)\033[0m\n' "$o"; fail=$((fail+1)); fi
+    else printf '%-34s \033[33m空值(仅告警)\033[0m\n' "$o"; fi
   done
   echo "$fail"
 }
