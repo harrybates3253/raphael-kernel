@@ -24,6 +24,14 @@ on:
       defconfig_file:
         description: "外部 config 文件（仓库内路径，优先于 defconfig；留空不用）"
         default: ""
+      aosp_clang:
+        description: "强制用 AOSP clang（而不是 runner 自带的 clang 18）"
+        type: boolean
+        default: true
+      ias:
+        description: "用 clang 集成汇编器 (-fintegrated-as)"
+        type: boolean
+        default: false
       tiny:
         description: "体积最小化：KCFLAGS 追加 -Oz / -fno-unwind-tables"
         type: boolean
@@ -110,6 +118,8 @@ jobs:
             ${{ inputs.slim && '--slim' || '' }} \
             ${{ inputs.baseline && '--baseline' || '' }} \
             ${{ inputs.tiny && '--tiny' || '' }} \
+            ${{ inputs.aosp_clang && '--aosp-clang' || '' }} \
+            ${{ inputs.ias && '--ias' || '' }} \
             ${{ inputs.defconfig_file != '' && format('--defconfig-file {0}', inputs.defconfig_file) || '' }}
           ./verify.sh --tree "work/${{ inputs.branch }}" --defconfig "${{ inputs.defconfig }}"
 
@@ -126,6 +136,8 @@ jobs:
             ${{ inputs.slim && '--slim' || '' }} \
             ${{ inputs.baseline && '--baseline' || '' }} \
             ${{ inputs.tiny && '--tiny' || '' }} \
+            ${{ inputs.aosp_clang && '--aosp-clang' || '' }} \
+            ${{ inputs.ias && '--ias' || '' }} \
             ${{ inputs.defconfig_file != '' && format('--defconfig-file {0}', inputs.defconfig_file) || '' }} \
             -j "$(nproc)"
 

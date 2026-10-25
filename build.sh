@@ -45,6 +45,8 @@ USE_LLD="${USE_LLD:-0}"
 SLIM="${SLIM:-0}"
 BASELINE="${BASELINE:-0}"
 TINY="${TINY:-0}"
+FORCE_AOSP_CLANG="${FORCE_AOSP_CLANG:-0}"
+USE_IAS="${USE_IAS:-0}"
 OUT_REL="out"
 CHECK_ONLY=0
 WITH_KSU=1
@@ -69,6 +71,8 @@ while [ $# -gt 0 ]; do
     --slim) SLIM=1 ;;
     --baseline) BASELINE=1 ;;
     --tiny) TINY=1 ;;
+    --aosp-clang) FORCE_AOSP_CLANG=1 ;;
+    --ias) USE_IAS=1 ;;
     --ksu-tag) KSU_TAG="$2"; shift ;;
     --ksu-fallbacks) KSU_FALLBACKS="$2"; shift ;;
     --tree) TREE_DIR="$2"; shift ;;
@@ -376,6 +380,7 @@ case "$TOOLCHAIN_MODE" in
     ;;
   clang|llvm)
     if [ -n "$CLANG_DIR" ]; then CL="$CLANG_DIR"
+    elif [ "$FORCE_AOSP_CLANG" = 1 ]; then CL="$WORK/toolchains/$CLANG_VER/bin"
     elif command -v clang >/dev/null && [ "$TOOLCHAIN_MODE" = clang ]; then CL="$(dirname "$(command -v clang)")"
     else
       CL="$WORK/toolchains/$CLANG_VER/bin"
@@ -398,6 +403,10 @@ case "$TOOLCHAIN_MODE" in
         ARM32_ARG="CROSS_COMPILE_ARM32=arm-linux-gnueabi-"
       else
         warn "没有 arm-linux-gnueabi-gcc，跳过 CROSS_COMPILE_ARM32（ARM32 vdso 可能不编）"
+      fi
+      if [ "$USE_IAS" = 1 ]; then
+        KCFLAGS="$KCFLAGS -fintegrated-as"
+        log "启用 clang 集成汇编器 (-fintegrated-as)"
       fi
       if [ "$USE_LLD" = 1 ]; then
         # 和 Rikka 那颗一致：clang + LLD（他的 Image 28.1MiB，我们是 GNU ld 出 38MiB）
