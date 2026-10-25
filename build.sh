@@ -336,8 +336,14 @@ log "KCFLAGS=$KCFLAGS"
 # 先单独编 KSU 子目录（1~2 分钟），KSU main 的 LSM hook / syscall dispatcher 是按
 # 4.17+ 的 security_hook_heads(hlist) 写的，4.14 上是 list_head，语义级不兼容 ->
 # 与其硬改，不如自动回落到老版本 KSU（v1.0.5 那代就是给 4.14 写的）
+# KSU 的源码目录随树而异：常规是 drivers/kernelsu（setup.sh 建的符号链接），
+# Rikka 的树是 drivers/staging/kernelsu（git submodule）。smoke 要编对目录名。
+KSU_BUILD_DIR=""
+[ -d drivers/staging/kernelsu ] && KSU_BUILD_DIR="drivers/staging/kernelsu/"
+[ -z "$KSU_BUILD_DIR" ] && [ -d drivers/kernelsu ] && KSU_BUILD_DIR="drivers/kernelsu/"
+
 smoke_ksu() {   # $1 = 版本标签（仅用于打印）
-  log "单独编 security/selinux + drivers/kernelsu（当前 $1，2~3 分钟）"
+  log "单独编 security/selinux + ${KSU_BUILD_DIR:-drivers/kernelsu/}（当前 $1，2~3 分钟）"
   # 子目录单编没有顶层 vmlinux 那套生成物，先补 prepare + include/generated/compile.h
   make -s -j"$JOBS" "${MAKE_ARGS[@]}" prepare >/dev/null 2>&1 || true
   make -s -j"$JOBS" "${MAKE_ARGS[@]}" include/generated/compile.h >/dev/null 2>&1 || true
@@ -348,7 +354,7 @@ smoke_ksu() {   # $1 = 版本标签（仅用于打印）
     grep -nE "error:|fatal error|\*\*\*" "$WORK/ksu-smoke.log" | tail -15 || true
     return 1
   fi
-  if make -j"$JOBS" "${MAKE_ARGS[@]}" drivers/kernelsu/ >>"$WORK/ksu-smoke.log" 2>&1; then
+  if make -j"$JOBS" "${MAKE_ARGS[@]}" "$KSU_BUILD_DIR" >>"$WORK/ksu-smoke.log" 2>&1; then
     log "KSU($1) 子目录编译通过"
     return 0
   fi
