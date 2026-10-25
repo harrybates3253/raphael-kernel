@@ -241,6 +241,14 @@ if [ "$WITH_KSU" = 1 ]; then
   KSU_USED="$KSU_TAG"
 fi
 
+# 有些树的 defconfig 里 CPU mask 三项是空值（`CONFIG_LITTLE_CPU_MASK=`），
+# kconfig 会警告 invalid 并最终留空 -> silentoldconfig aborted。直接在 defconfig 里补值。
+DFCFG="arch/arm64/configs/${DEFCONFIG}"
+if [ -f "$DFCFG" ] && grep -qE '^CONFIG_(LITTLE|BIG|PRIME)_CPU_MASK=' "$DFCFG"; then
+  sed -i -E 's/^CONFIG_LITTLE_CPU_MASK=.*/CONFIG_LITTLE_CPU_MASK=15/; s/^CONFIG_BIG_CPU_MASK=.*/CONFIG_BIG_CPU_MASK=112/; s/^CONFIG_PRIME_CPU_MASK=.*/CONFIG_PRIME_CPU_MASK=128/' "$DFCFG"
+  log "CPU mask 补值: defconfig 里三处空值已填 15/112/128"
+fi
+
 # ---------------- 4. 合并 config ----------------
 # 不用「make vendor/xxx.config」那条路：树里 scripts/kconfig/Makefile 的 %.config 规则是
 #   merge_config.sh -m .config $(configfiles)
