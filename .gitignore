@@ -4,3 +4,7 @@ work/
 Image-*
 .config-*
 boot-backup-*.img
+
+device/*.img
+device/config.gz
+out/

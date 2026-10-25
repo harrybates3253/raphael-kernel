@@ -21,6 +21,9 @@ on:
       ksu_tag:
         description: "KernelSU tag/commit（master = backslashxx 分支最新）"
         default: "master"
+      defconfig_file:
+        description: "外部 config 文件（仓库内路径，优先于 defconfig；留空不用）"
+        default: ""
       no_ksu:
         description: "只编 Droidspaces（不要 KernelSU，用于排查启动失败）"
         type: boolean
@@ -81,7 +84,8 @@ jobs:
           ./build.sh --check \
             --repo "${{ inputs.repo }}" --branch "${{ inputs.branch }}" \
             --defconfig "${{ inputs.defconfig }}" --ksu-tag "${{ inputs.ksu_tag }}" \
-            ${{ inputs.no_ksu && '--no-ksu' || '' }}
+            ${{ inputs.no_ksu && '--no-ksu' || '' }} \
+            ${{ inputs.defconfig_file != '' && format('--defconfig-file {0}', inputs.defconfig_file) || '' }}
           ./verify.sh --tree "work/${{ inputs.branch }}" --defconfig "${{ inputs.defconfig }}"
 
       - name: Build Image + AnyKernel3 zip
@@ -92,6 +96,7 @@ jobs:
             --repo "${{ inputs.repo }}" --branch "${{ inputs.branch }}" \
             --defconfig "${{ inputs.defconfig }}" --ksu-tag "${{ inputs.ksu_tag }}" \
             ${{ inputs.no_ksu && '--no-ksu' || '' }} \
+            ${{ inputs.defconfig_file != '' && format('--defconfig-file {0}', inputs.defconfig_file) || '' }} \
             -j "$(nproc)"
 
       - name: Dump build log on failure

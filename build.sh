@@ -39,6 +39,7 @@ JOBS="${JOBS:-$(nproc)}"
 KIT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORK="${WORK:-$KIT_DIR/work}"
 TREE_DIR=""
+DEFCONFIG_FILE=""
 OUT_REL="out"
 CHECK_ONLY=0
 WITH_KSU=1
@@ -57,6 +58,7 @@ while [ $# -gt 0 ]; do
     --repo) REPO="$2"; shift ;;
     --branch) BRANCH="$2"; shift ;;
     --defconfig) DEFCONFIG="$2"; shift ;;
+    --defconfig-file) DEFCONFIG_FILE="$2"; shift ;;
     --ksu-tag) KSU_TAG="$2"; shift ;;
     --ksu-fallbacks) KSU_FALLBACKS="$2"; shift ;;
     --tree) TREE_DIR="$2"; shift ;;
@@ -101,6 +103,13 @@ if [ -z "$TREE" ]; then
   fi
 fi
 [ -f "$TREE/Makefile" ] || die "$TREE 不是内核源码树"
+# 用外部 config 当基线（例如从工作机的 /proc/config.gz 拉出来的 .config）
+if [ -n "$DEFCONFIG_FILE" ]; then
+  [ -f "$DEFCONFIG_FILE" ] || die "找不到 $DEFCONFIG_FILE"
+  DEFCONFIG="raphael_custom_defconfig"
+  cp "$DEFCONFIG_FILE" "arch/arm64/configs/$DEFCONFIG"
+  log "用外部 config 作基线: $DEFCONFIG_FILE -> arch/arm64/configs/$DEFCONFIG"
+fi
 cd "$TREE"
 KVER="$(awk '/^VERSION|^PATCHLEVEL|^SUBLEVEL/{printf "%s.", $3}' Makefile | sed 's/\.$//')"
 log "内核基线版本: $KVER"
@@ -354,7 +363,10 @@ log "kernel release: ${KREL:-unknown}"
 # ---------------- 8. AnyKernel3 ----------------
 AK="$WORK/AnyKernel3"
 [ -d "$AK/.git" ] || git clone --depth=1 https://github.com/Kernel-SU/AnyKernel3.git "$AK" >/dev/null 2>&1 || die "AnyKernel3 克隆失败"
-cp "$IMG" "$AK/Image"
+# 实机 boot.img 里 kernel 是 gzip（1f8b）；raw 44MB Image 直接塞进去
+# 有可能超过 bootloader 的 kernel 缓冲上限 -> 卡 logo 重启。这里统一压成 Image.gz
+gzip -9 -n -c "$IMG" > "$AK/Image.gz"
+ls -lh "$AK/Image.gz"
 # 机型白名单 + 说明有 KSU
 sed -i 's/^device.name1=.*/device.name1=raphael/' "$AK/anykernel.sh"
 sed -i 's/^device.name2=.*/device.name2=cepheus/' "$AK/anykernel.sh"
