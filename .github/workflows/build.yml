@@ -21,6 +21,10 @@ on:
       ksu_tag:
         description: "KernelSU tag/commit（master = backslashxx 分支最新）"
         default: "master"
+      no_ksu:
+        description: "只编 Droidspaces（不要 KernelSU，用于排查启动失败）"
+        type: boolean
+        default: false
       clang:
         description: "clang 版本（4.14 老树编不过时换它）"
         default: "clang-r416183b1"
@@ -76,7 +80,8 @@ jobs:
           chmod +x build.sh verify.sh flash-backup.sh
           ./build.sh --check \
             --repo "${{ inputs.repo }}" --branch "${{ inputs.branch }}" \
-            --defconfig "${{ inputs.defconfig }}" --ksu-tag "${{ inputs.ksu_tag }}"
+            --defconfig "${{ inputs.defconfig }}" --ksu-tag "${{ inputs.ksu_tag }}" \
+            ${{ inputs.no_ksu && '--no-ksu' || '' }}
           ./verify.sh --tree "work/${{ inputs.branch }}" --defconfig "${{ inputs.defconfig }}"
 
       - name: Build Image + AnyKernel3 zip
@@ -86,6 +91,7 @@ jobs:
           ./build.sh \
             --repo "${{ inputs.repo }}" --branch "${{ inputs.branch }}" \
             --defconfig "${{ inputs.defconfig }}" --ksu-tag "${{ inputs.ksu_tag }}" \
+            ${{ inputs.no_ksu && '--no-ksu' || '' }} \
             -j "$(nproc)"
 
       - name: Dump build log on failure
