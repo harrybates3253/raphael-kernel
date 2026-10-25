@@ -238,6 +238,8 @@ CONFIG_SECCOMP CONFIG_SECCOMP_FILTER CONFIG_CGROUPS CONFIG_CGROUP_DEVICE CONFIG_
 CONFIG_DEVTMPFS CONFIG_OVERLAY_FS CONFIG_TMPFS_XATTR CONFIG_NET_NS CONFIG_VETH CONFIG_BRIDGE
 CONFIG_USER_NS CONFIG_MACVLAN CONFIG_IP6_NF_NAT CONFIG_KPROBES CONFIG_KALLSYMS_ALL CONFIG_MODULES"
 MUST_N="CONFIG_MODULE_SIG CONFIG_ANDROID_PARANOID_NETWORK"
+# int 型、无默认值的符号：空值会让 silentoldconfig 直接 aborted
+MUST_SET="CONFIG_LITTLE_CPU_MASK CONFIG_BIG_CPU_MASK CONFIG_PRIME_CPU_MASK"
 
 gate() {  # 返回缺失项数量
   local fail=0 o
@@ -248,6 +250,10 @@ gate() {  # 返回缺失项数量
   for o in $MUST_N; do
     if check_opt "$o" n; then [ "${QUIET:-0}" = 1 ] || printf '%-34s \033[32mOK(off)\033[0m\n' "$o"
     else printf '%-34s \033[31m应当关闭却开着\033[0m\n' "$o"; fail=$((fail+1)); fi
+  done
+  for o in $MUST_SET; do
+    if grep -qE "^${o}=[0-9]+$" "$CFG"; then [ "${QUIET:-0}" = 1 ] || printf '%-34s \033[32mOK(set)\033[0m\n' "$o"
+    else printf '%-34s \033[31m空值(会卡 silentoldconfig)\033[0m\n' "$o"; fail=$((fail+1)); fi
   done
   echo "$fail"
 }
