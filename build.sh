@@ -42,6 +42,7 @@ TREE_DIR=""
 DEFCONFIG_FILE=""
 DROP_TECHPACK="${DROP_TECHPACK:-0}"
 USE_LLD="${USE_LLD:-0}"
+SLIM="${SLIM:-0}"
 OUT_REL="out"
 CHECK_ONLY=0
 WITH_KSU=1
@@ -63,6 +64,7 @@ while [ $# -gt 0 ]; do
     --defconfig-file) DEFCONFIG_FILE="$2"; shift ;;
     --drop-techpack) DROP_TECHPACK=1 ;;
     --lld) USE_LLD=1 ;;
+    --slim) SLIM=1 ;;
     --ksu-tag) KSU_TAG="$2"; shift ;;
     --ksu-fallbacks) KSU_FALLBACKS="$2"; shift ;;
     --tree) TREE_DIR="$2"; shift ;;
@@ -225,6 +227,33 @@ cp "$KIT_DIR/configs/droidspaces-raphael.config" arch/arm64/configs/vendor/droid
 if [ "$WITH_KSU" = 0 ]; then
   { echo ""; echo "# ---- no-ksu: 子模块在，但不启用 ----"; echo "# CONFIG_KSU is not set"; } \
     >> arch/arm64/configs/vendor/droidspaces.config
+fi
+if [ "$SLIM" = 1 ]; then
+  # 体积急救：关掉调试基础设施（对日常使用无影响），目标砍 8MB 到 32MiB 以下
+  cat >> arch/arm64/configs/vendor/droidspaces.config <<'SLIMCFG'
+
+# ---- slim: 调试基础设施全关（不影响正常使用，纯粹为了 Image 体积）----
+# CONFIG_FTRACE is not set
+# CONFIG_FUNCTION_TRACER is not set
+# CONFIG_DYNAMIC_FTRACE is not set
+# CONFIG_STACK_TRACER is not set
+# CONFIG_IRQSOFF_TRACER is not set
+# CONFIG_SCHED_TRACER is not set
+# CONFIG_FTRACE_SYSCALLS is not set
+# CONFIG_DEBUG_KERNEL is not set
+# CONFIG_DEBUG_FS is not set
+# CONFIG_LOCKDEP is not set
+# CONFIG_PROVE_LOCKING is not set
+# CONFIG_DEBUG_SPINLOCK is not set
+# CONFIG_DEBUG_MUTEXES is not set
+# CONFIG_DEBUG_ATOMIC_SLEEP is not set
+# CONFIG_SCHED_DEBUG is not set
+# CONFIG_SLUB_DEBUG is not set
+# CONFIG_DEBUG_BUGVERBOSE is not set
+# CONFIG_BPF_SYSCALL is not set
+# CONFIG_KPROBE_EVENTS is not set
+SLIMCFG
+  log "slim 模式：已追加关闭 FTRACE/DEBUG_KERNEL/LOCKDEP/DEBUG_FS 等"
 fi
 if [ "${KSU_MODE:-external}" = "submodule" ]; then
   # 树内这版 KSU 的 ksud.c 是这么写的：

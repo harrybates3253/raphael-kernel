@@ -24,6 +24,10 @@ on:
       defconfig_file:
         description: "外部 config 文件（仓库内路径，优先于 defconfig；留空不用）"
         default: ""
+      slim:
+        description: "体积急救：关调试基础设施（FTRACE/DEBUG_KERNEL/LOCKDEP…）"
+        type: boolean
+        default: false
       use_lld:
         description: "用 LLD 链接（和 Rikka 的构建方式一致，通常更小）"
         type: boolean
@@ -95,6 +99,7 @@ jobs:
             ${{ inputs.no_ksu && '--no-ksu' || '' }} \
             ${{ inputs.drop_techpack && '--drop-techpack' || '' }} \
             ${{ inputs.use_lld && '--lld' || '' }} \
+            ${{ inputs.slim && '--slim' || '' }} \
             ${{ inputs.defconfig_file != '' && format('--defconfig-file {0}', inputs.defconfig_file) || '' }}
           ./verify.sh --tree "work/${{ inputs.branch }}" --defconfig "${{ inputs.defconfig }}"
 
@@ -108,6 +113,7 @@ jobs:
             ${{ inputs.no_ksu && '--no-ksu' || '' }} \
             ${{ inputs.drop_techpack && '--drop-techpack' || '' }} \
             ${{ inputs.use_lld && '--lld' || '' }} \
+            ${{ inputs.slim && '--slim' || '' }} \
             ${{ inputs.defconfig_file != '' && format('--defconfig-file {0}', inputs.defconfig_file) || '' }} \
             -j "$(nproc)"
 
