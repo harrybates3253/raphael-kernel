@@ -183,7 +183,11 @@ fi
 mkdir -p arch/arm64/configs/vendor
 cp "$KIT_DIR/configs/droidspaces-raphael.config" arch/arm64/configs/vendor/droidspaces.config
 log "生成 .config: $DEFCONFIG + droidspaces fragment"
-make -s O="$OUT_REL" "$DEFCONFIG" >/dev/null 2>&1 || die "make $DEFCONFIG 失败"
+if ! make O="$OUT_REL" "$DEFCONFIG" >"$WORK/defconfig.log" 2>&1; then
+  echo "================ make $DEFCONFIG 失败，输出如下 ================"
+  tail -40 "$WORK/defconfig.log" || true
+  die "make $DEFCONFIG 失败（上面是 make 的原始输出）"
+fi
 CFG="$OUT_REL/.config"
 [ -f "$CFG" ] || die "没生成 $CFG"
 { echo ""; echo "# ==== droidspaces fragment (appended $(date -u +%FT%TZ)) ====";
