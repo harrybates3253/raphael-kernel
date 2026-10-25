@@ -183,6 +183,16 @@ setup_ksu() {   # $1 = tag/分支
 }
 
 KSU_USED=""
+# 树内自带 KSU 子模块时，无论要不要 KSU 都得把子模块拉下来，
+# 否则 drivers/staging/Kconfig 里的 source 指向空目录，连 defconfig 都过不去
+if [ -f .gitmodules ] && grep -qi "kernelsu" .gitmodules; then
+  log "初始化树内 KernelSU 子模块（只需要其中的 Kconfig 存在）"
+  git submodule update --init --recursive >/dev/null 2>&1 || \
+    git submodule update --init --recursive --depth 1 >/dev/null 2>&1 || warn "子模块初始化失败"
+  _sub="$(git config -f .gitmodules --get-regexp path | awk '/kernelsu/{print $2; exit}')"
+  log "子模块: ${_sub:-?} @ $(git -C "${_sub:-.}" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+fi
+
 if [ "$WITH_KSU" = 1 ]; then
   setup_ksu "$KSU_TAG" || die "KernelSU($KSU_TAG) 集成失败"
   KSU_USED="$KSU_TAG"
@@ -197,6 +207,10 @@ fi
 # -> olddefconfig 让 Kconfig 重新算依赖。
 mkdir -p arch/arm64/configs/vendor
 cp "$KIT_DIR/configs/droidspaces-raphael.config" arch/arm64/configs/vendor/droidspaces.config
+if [ "$WITH_KSU" = 0 ]; then
+  { echo ""; echo "# ---- no-ksu: 子模块在，但不启用 ----"; echo "# CONFIG_KSU is not set"; } \
+    >> arch/arm64/configs/vendor/droidspaces.config
+fi
 log "生成 .config: $DEFCONFIG + droidspaces fragment"
 if ! make O="$OUT_REL" "$DEFCONFIG" >"$WORK/defconfig.log" 2>&1; then
   echo "================ make $DEFCONFIG 失败，输出如下 ================"
@@ -333,7 +347,9 @@ smoke_ksu() {   # $1 = 版本标签（仅用于打印）
     return 0
   fi
   echo "---------------- KSU($1) 编译错误 ----------------"
-  grep -nE "error:|fatal error|\*\*\*" "$WORK/ksu-smoke.log" | tail -25 || true
+  head -40 "$WORK/ksu-smoke.log" || true
+  echo "  ..."
+  grep -nE "error:|fatal error|\*\*\*|Kconfig|Configuration" "$WORK/ksu-smoke.log" | tail -25 || true
   # 只因为「子目录单编缺生成物」而挂（compile.h / flask.h），不算 KSU 的锅，放行去全量编
   if grep -qE "generated/compile\.h|'flask\.h'" "$WORK/ksu-smoke.log" && \
      ! grep -qE "error:" <(grep -vE "generated/compile\.h|flask\.h" "$WORK/ksu-smoke.log"); then

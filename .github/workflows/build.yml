@@ -102,7 +102,7 @@ jobs:
       - name: Dump build log on failure
         if: failure()
         run: |
-          for f in work/build.log work/merge.log; do
+          for f in work/build.log work/merge.log work/ksu-smoke.log work/defconfig.log; do
             [ -f "$f" ] || continue
             echo "::group::$f"
             echo "---- error lines ----"
