@@ -18,6 +18,9 @@ on:
       defconfig:
         description: "基础 defconfig"
         default: "raphael_stock_defconfig"
+      ksu_url:
+        description: "KernelSU setup.sh 地址（默认 backslashxx 分支；官方用 tiann main）"
+        default: "https://raw.githubusercontent.com/backslashxx/KernelSU/refs/heads/master/kernel/setup.sh"
       ksu_tag:
         description: "KernelSU tag/commit（master = backslashxx 分支最新）"
         default: "master"
@@ -141,6 +144,7 @@ jobs:
       - name: Configure + config gate (--check)
         env:
           CLANG_VER: ${{ inputs.clang }}
+          KSU_SETUP_URL: ${{ inputs.ksu_url }}
         run: |
           chmod +x build.sh verify.sh flash-backup.sh
           ./build.sh --check \
@@ -165,6 +169,7 @@ jobs:
       - name: Build Image + AnyKernel3 zip
         env:
           CLANG_VER: ${{ inputs.clang }}
+          KSU_SETUP_URL: ${{ inputs.ksu_url }}
         run: |
           ./build.sh \
             --repo "${{ inputs.repo }}" --branch "${{ inputs.branch }}" \
