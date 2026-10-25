@@ -141,6 +141,21 @@ apply_patch "$KIT_DIR/patches/01.fix_kernel_panic_in_xt_qtaguid.patch"
 # 做成函数是因为 main 在 4.14 上编不过时要能原地换 tag（见第 7 段 smoke）
 setup_ksu() {   # $1 = tag/分支
   local tag="$1"
+
+  # A) 树里自带 KernelSU 子模块（iatbsky/Rikka 的树就是这种：drivers/staging/kernelsu
+  #    指向 tiann/KernelSU 的某个 pin 住的 commit）。这条路最稳：KSU 版本就是
+  #    “原始能开机的内核”用的那一个，不用 setup.sh，也不会和树里的 Kconfig 打架。
+  if [ -f .gitmodules ] && grep -qi "kernelsu" .gitmodules; then
+    log "树内带 KernelSU 子模块，初始化子模块"
+    git submodule update --init --recursive >/dev/null 2>&1 || \
+      git submodule update --init --recursive --depth 1 >/dev/null 2>&1 || \
+      die "子模块初始化失败（.gitmodules 里有 kernelsu）"
+    local sub
+    sub="$(git config -f .gitmodules --get-regexp 'path' | awk '/kernelsu/{print $2; exit}')"
+    log "KSU 子模块: ${sub:-drivers/staging/kernelsu} @ $(git -C "${sub:-.}" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+    KSU_USED="submodule:$(git -C "${sub:-.}" rev-parse --short HEAD 2>/dev/null || echo pinned)"
+    return 0
+  fi
   if [ -d KernelSU/.git ]; then
     log "切换 KernelSU -> $tag"
     ( cd KernelSU
