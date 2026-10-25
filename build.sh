@@ -389,7 +389,9 @@ if [ "$BASELINE" = 1 ]; then
   fail=0
 else
 printf '%-34s %s\n' "配置项" "结果"
-fail="$(gate | tail -1)"
+gate > "$WORK/gate.log" 2>&1
+fail="$(tail -1 "$WORK/gate.log")"
+sed '$d' "$WORK/gate.log"
 fi
 if [ "${fail:-0}" -ne 0 ]; then
   warn "第一轮有 $fail 项没落地，追加到 .config 后 olddefconfig 兜底"
@@ -401,9 +403,11 @@ if [ "${fail:-0}" -ne 0 ]; then
   } >> "$CFG"
   make -s O="$OUT_REL" olddefconfig >/dev/null 2>&1 || die "olddefconfig(兜底) 失败"
   printf '%-34s %s\n' "配置项(第二轮)" "结果"
-  fail="$(gate | tail -1)"
+  gate > "$WORK/gate.log" 2>&1
+  fail="$(tail -1 "$WORK/gate.log")"
+  sed '$d' "$WORK/gate.log" 
 fi
-[ "${fail:-0}" -eq 0 ] || die "$fail 项配置仍没落地：该符号在你选的树里不存在（换树/换 defconfig），或依赖没满足，见 $CFG"
+[ "${fail:-0}" -eq 0 ] || die "$fail 项配置仍没落地：$(grep -E 'MISSING|应当关闭|空值' "$WORK/gate.log" | sed 's/\x1b\[[0-9;]*m//g' | tr '\n' ';')  （该符号在你选的树里不存在或依赖没满足，见 $CFG）"
 if [ "$WITH_KSU" = 1 ] && ! grep -q "CONFIG_KPROBES=y" "$CFG"; then
   warn "KPROBES 没开：KernelSU 在 4.14 上只能靠 kprobe，编出来也不会有 root"
 fi
