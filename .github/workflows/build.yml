@@ -24,6 +24,10 @@ on:
       defconfig_file:
         description: "外部 config 文件（仓库内路径，优先于 defconfig；留空不用）"
         default: ""
+      no_media:
+        description: "关掉 camera/vidc（image_size 瘦身）"
+        type: boolean
+        default: false
       aosp_clang:
         description: "强制用 AOSP clang（而不是 runner 自带的 clang 18）"
         type: boolean
@@ -119,6 +123,7 @@ jobs:
             ${{ inputs.baseline && '--baseline' || '' }} \
             ${{ inputs.tiny && '--tiny' || '' }} \
             ${{ inputs.aosp_clang && '--aosp-clang' || '' }} \
+            ${{ inputs.no_media && '--no-media' || '' }} \
             ${{ inputs.ias && '--ias' || '' }} \
             ${{ inputs.defconfig_file != '' && format('--defconfig-file {0}', inputs.defconfig_file) || '' }}
           ./verify.sh --tree "work/${{ inputs.branch }}" --defconfig "${{ inputs.defconfig }}"
@@ -137,6 +142,7 @@ jobs:
             ${{ inputs.baseline && '--baseline' || '' }} \
             ${{ inputs.tiny && '--tiny' || '' }} \
             ${{ inputs.aosp_clang && '--aosp-clang' || '' }} \
+            ${{ inputs.no_media && '--no-media' || '' }} \
             ${{ inputs.ias && '--ias' || '' }} \
             ${{ inputs.defconfig_file != '' && format('--defconfig-file {0}', inputs.defconfig_file) || '' }} \
             -j "$(nproc)"

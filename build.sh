@@ -47,6 +47,7 @@ BASELINE="${BASELINE:-0}"
 TINY="${TINY:-0}"
 FORCE_AOSP_CLANG="${FORCE_AOSP_CLANG:-0}"
 USE_IAS="${USE_IAS:-0}"
+NO_MEDIA="${NO_MEDIA:-0}"
 OUT_REL="out"
 CHECK_ONLY=0
 WITH_KSU=1
@@ -73,6 +74,7 @@ while [ $# -gt 0 ]; do
     --tiny) TINY=1 ;;
     --aosp-clang) FORCE_AOSP_CLANG=1 ;;
     --ias) USE_IAS=1 ;;
+    --no-media) NO_MEDIA=1 ;;
     --ksu-tag) KSU_TAG="$2"; shift ;;
     --ksu-fallbacks) KSU_FALLBACKS="$2"; shift ;;
     --tree) TREE_DIR="$2"; shift ;;
@@ -248,6 +250,16 @@ fi
 if [ "$WITH_KSU" = 0 ]; then
   { echo ""; echo "# ---- no-ksu: 子模块在，但不启用 ----"; echo "# CONFIG_KSU is not set"; } \
     >> arch/arm64/configs/vendor/droidspaces.config
+fi
+if [ "$NO_MEDIA" = 1 ]; then
+  cat >> arch/arm64/configs/vendor/droidspaces.config <<'NOMEDIACFG'
+
+# ---- no-media: 关掉 camera/vidc/tuners（image_size 瘦身用）----
+# CONFIG_MEDIA_SUPPORT is not set
+# CONFIG_MSM_VIDC_V4L2 is not set
+# CONFIG_MSM_VIDC_GOVERNORS is not set
+NOMEDIACFG
+  log "no-media 模式：已关闭 MEDIA_SUPPORT / MSM_VIDC"
 fi
 if [ "$SLIM" = 1 ]; then
   # 体积急救：关掉调试基础设施（对日常使用无影响），目标砍 8MB 到 32MiB 以下
