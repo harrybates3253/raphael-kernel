@@ -339,8 +339,12 @@ log "KCFLAGS=$KCFLAGS"
 # KSU 的源码目录随树而异：常规是 drivers/kernelsu（setup.sh 建的符号链接），
 # Rikka 的树是 drivers/staging/kernelsu（git submodule）。smoke 要编对目录名。
 KSU_BUILD_DIR=""
-[ -d drivers/staging/kernelsu ] && KSU_BUILD_DIR="drivers/staging/kernelsu/"
-[ -z "$KSU_BUILD_DIR" ] && [ -d drivers/kernelsu ] && KSU_BUILD_DIR="drivers/kernelsu/"
+# 三选一：子模块的 kernel/ 子目录 / 子模块根 / setup.sh 建的 drivers/kernelsu
+if [ -f drivers/staging/kernelsu/kernel/Makefile ]; then
+  KSU_BUILD_DIR="drivers/staging/kernelsu/kernel/"
+elif [ -f drivers/kernelsu/Makefile ]; then
+  KSU_BUILD_DIR="drivers/kernelsu/"
+fi
 
 smoke_ksu() {   # $1 = 版本标签（仅用于打印）
   log "单独编 security/selinux + ${KSU_BUILD_DIR:-drivers/kernelsu/}（当前 $1，2~3 分钟）"
