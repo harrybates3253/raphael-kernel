@@ -142,6 +142,14 @@ log "内核基线版本: $KVER"
 grep -q "CONFIG_64BIT" arch/arm64/configs/"$DEFCONFIG" 2>/dev/null || \
   [ -f arch/arm64/configs/"$DEFCONFIG" ] || die "找不到 arch/arm64/configs/$DEFCONFIG"
 
+# 有些树（HeliumStudio 的 oss-base）scripts/dtc 里有 yamltree.c，但 Makefile 没链 -lyaml
+# 会让 host 工具 dtc 链接失败（undefined reference to yaml_*）。这里补一行。
+if [ -f scripts/dtc/yamltree.c ] && ! grep -q "HOSTLOADLIBES_dtc" scripts/dtc/Makefile 2>/dev/null; then
+  echo 'HOSTLOADLIBES_dtc += -lyaml' >> scripts/dtc/Makefile
+  echo 'HOSTLOADLIBES_dtc-lexer += -lyaml' >> scripts/dtc/Makefile
+  log "已给 scripts/dtc/Makefile 补 -lyaml"
+fi
+
 # ---------------- 2. 补丁 ----------------
 apply_patch() {  # $1=patch 文件
   local p="$1"
