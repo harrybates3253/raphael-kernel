@@ -24,6 +24,13 @@ on:
       defconfig_file:
         description: "外部 config 文件（仓库内路径，优先于 defconfig；留空不用）"
         default: ""
+      localversion:
+        description: "CONFIG_LOCALVERSION（对齐厂商模块 vermagic，例如 -Rikka-V6-20241003-2344）"
+        default: ""
+      no_modversions:
+        description: "关闭 CONFIG_MODVERSIONS（跨编译器 CRC 不可能一致）"
+        type: boolean
+        default: true
       no_media:
         description: "关掉 camera/vidc（image_size 瘦身）"
         type: boolean
@@ -124,6 +131,8 @@ jobs:
             ${{ inputs.tiny && '--tiny' || '' }} \
             ${{ inputs.aosp_clang && '--aosp-clang' || '' }} \
             ${{ inputs.no_media && '--no-media' || '' }} \
+            ${{ inputs.localversion != '' && format('--localversion {0}', inputs.localversion) || '' }} \
+            ${{ inputs.no_modversions && '--no-modversions' || '' }} \
             ${{ inputs.ias && '--ias' || '' }} \
             ${{ inputs.defconfig_file != '' && format('--defconfig-file {0}', inputs.defconfig_file) || '' }}
           ./verify.sh --tree "work/${{ inputs.branch }}" --defconfig "${{ inputs.defconfig }}"
@@ -143,6 +152,8 @@ jobs:
             ${{ inputs.tiny && '--tiny' || '' }} \
             ${{ inputs.aosp_clang && '--aosp-clang' || '' }} \
             ${{ inputs.no_media && '--no-media' || '' }} \
+            ${{ inputs.localversion != '' && format('--localversion {0}', inputs.localversion) || '' }} \
+            ${{ inputs.no_modversions && '--no-modversions' || '' }} \
             ${{ inputs.ias && '--ias' || '' }} \
             ${{ inputs.defconfig_file != '' && format('--defconfig-file {0}', inputs.defconfig_file) || '' }} \
             -j "$(nproc)"

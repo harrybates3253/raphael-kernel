@@ -48,6 +48,8 @@ TINY="${TINY:-0}"
 FORCE_AOSP_CLANG="${FORCE_AOSP_CLANG:-0}"
 USE_IAS="${USE_IAS:-0}"
 NO_MEDIA="${NO_MEDIA:-0}"
+LOCALVERSION="${LOCALVERSION:-}"
+NO_MODVERSIONS="${NO_MODVERSIONS:-0}"
 OUT_REL="out"
 CHECK_ONLY=0
 WITH_KSU=1
@@ -75,6 +77,8 @@ while [ $# -gt 0 ]; do
     --aosp-clang) FORCE_AOSP_CLANG=1 ;;
     --ias) USE_IAS=1 ;;
     --no-media) NO_MEDIA=1 ;;
+    --localversion) LOCALVERSION="$2"; shift ;;
+    --no-modversions) NO_MODVERSIONS=1 ;;
     --ksu-tag) KSU_TAG="$2"; shift ;;
     --ksu-fallbacks) KSU_FALLBACKS="$2"; shift ;;
     --tree) TREE_DIR="$2"; shift ;;
@@ -250,6 +254,23 @@ fi
 if [ "$WITH_KSU" = 0 ]; then
   { echo ""; echo "# ---- no-ksu: 子模块在，但不启用 ----"; echo "# CONFIG_KSU is not set"; } \
     >> arch/arm64/configs/vendor/droidspaces.config
+fi
+if [ -n "$LOCALVERSION" ]; then
+  cat >> arch/arm64/configs/vendor/droidspaces.config <<LOCVER
+
+# ---- 对齐 vermagic：让 /vendor/lib/modules 下的厂商模块能被加载 ----
+CONFIG_LOCALVERSION="$LOCALVERSION"
+# CONFIG_LOCALVERSION_AUTO is not set
+LOCVER
+  log "已设置 CONFIG_LOCALVERSION=\"$LOCALVERSION\"（对齐厂商模块 vermagic）"
+fi
+if [ "$NO_MODVERSIONS" = 1 ]; then
+  cat >> arch/arm64/configs/vendor/droidspaces.config <<NOMV
+
+# ---- 关掉 MODVERSIONS：不同编译器产出的符号 CRC 不可能与厂商模块一致 ----
+# CONFIG_MODVERSIONS is not set
+NOMV
+  log "已关闭 CONFIG_MODVERSIONS"
 fi
 if [ "$NO_MEDIA" = 1 ]; then
   cat >> arch/arm64/configs/vendor/droidspaces.config <<'NOMEDIACFG'
