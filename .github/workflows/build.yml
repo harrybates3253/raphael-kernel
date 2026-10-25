@@ -24,6 +24,10 @@ on:
       defconfig_file:
         description: "外部 config 文件（仓库内路径，优先于 defconfig；留空不用）"
         default: ""
+      tiny:
+        description: "体积最小化：KCFLAGS 追加 -Oz / -fno-unwind-tables"
+        type: boolean
+        default: false
       baseline:
         description: "只量体积：用 defconfig_file 当基线、不叠加 fragment"
         type: boolean
@@ -105,6 +109,7 @@ jobs:
             ${{ inputs.use_lld && '--lld' || '' }} \
             ${{ inputs.slim && '--slim' || '' }} \
             ${{ inputs.baseline && '--baseline' || '' }} \
+            ${{ inputs.tiny && '--tiny' || '' }} \
             ${{ inputs.defconfig_file != '' && format('--defconfig-file {0}', inputs.defconfig_file) || '' }}
           ./verify.sh --tree "work/${{ inputs.branch }}" --defconfig "${{ inputs.defconfig }}"
 
@@ -120,6 +125,7 @@ jobs:
             ${{ inputs.use_lld && '--lld' || '' }} \
             ${{ inputs.slim && '--slim' || '' }} \
             ${{ inputs.baseline && '--baseline' || '' }} \
+            ${{ inputs.tiny && '--tiny' || '' }} \
             ${{ inputs.defconfig_file != '' && format('--defconfig-file {0}', inputs.defconfig_file) || '' }} \
             -j "$(nproc)"
 

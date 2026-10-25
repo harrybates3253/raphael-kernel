@@ -44,6 +44,7 @@ DROP_TECHPACK="${DROP_TECHPACK:-0}"
 USE_LLD="${USE_LLD:-0}"
 SLIM="${SLIM:-0}"
 BASELINE="${BASELINE:-0}"
+TINY="${TINY:-0}"
 OUT_REL="out"
 CHECK_ONLY=0
 WITH_KSU=1
@@ -67,6 +68,7 @@ while [ $# -gt 0 ]; do
     --lld) USE_LLD=1 ;;
     --slim) SLIM=1 ;;
     --baseline) BASELINE=1 ;;
+    --tiny) TINY=1 ;;
     --ksu-tag) KSU_TAG="$2"; shift ;;
     --ksu-fallbacks) KSU_FALLBACKS="$2"; shift ;;
     --tree) TREE_DIR="$2"; shift ;;
@@ -419,6 +421,11 @@ esac
 # KCFLAGS 在 Makefile 第 1037 行才拼进 KBUILD_CFLAGS，位置在那些 -Werror 之后，
 # 所以 `-Wno-error=xxx` 能盖住它们，且不用改源码。
 export KCFLAGS="${KCFLAGS:--Wno-error=strict-prototypes -Wno-error=incompatible-pointer-types -Wno-error=implicit-int}"
+if [ "$TINY" = 1 ]; then
+  # -Oz + 去掉 unwind 表：clang 下通常能再省 10~15%
+  KCFLAGS="$KCFLAGS -Oz -fno-asynchronous-unwind-tables -fno-unwind-tables"
+  log "tiny 模式：追加 -Oz / -fno-unwind-tables"
+fi
 log "KCFLAGS=$KCFLAGS"
 
 # 先单独编 KSU 子目录（1~2 分钟），KSU main 的 LSM hook / syscall dispatcher 是按
