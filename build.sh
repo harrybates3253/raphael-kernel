@@ -103,14 +103,16 @@ if [ -z "$TREE" ]; then
   fi
 fi
 [ -f "$TREE/Makefile" ] || die "$TREE 不是内核源码树"
+cd "$TREE"
 # 用外部 config 当基线（例如从工作机的 /proc/config.gz 拉出来的 .config）
+# 注意：必须在 cd 进树之后再做，否则 cp 到的是 work 目录
 if [ -n "$DEFCONFIG_FILE" ]; then
+  [ -f "$KIT_DIR/$DEFCONFIG_FILE" ] && DEFCONFIG_FILE="$KIT_DIR/$DEFCONFIG_FILE"
   [ -f "$DEFCONFIG_FILE" ] || die "找不到 $DEFCONFIG_FILE"
   DEFCONFIG="raphael_custom_defconfig"
   cp "$DEFCONFIG_FILE" "arch/arm64/configs/$DEFCONFIG"
   log "用外部 config 作基线: $DEFCONFIG_FILE -> arch/arm64/configs/$DEFCONFIG"
 fi
-cd "$TREE"
 KVER="$(awk '/^VERSION|^PATCHLEVEL|^SUBLEVEL/{printf "%s.", $3}' Makefile | sed 's/\.$//')"
 log "内核基线版本: $KVER"
 grep -q "CONFIG_64BIT" arch/arm64/configs/"$DEFCONFIG" 2>/dev/null || \
