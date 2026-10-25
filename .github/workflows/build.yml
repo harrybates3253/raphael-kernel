@@ -24,6 +24,10 @@ on:
       defconfig_file:
         description: "外部 config 文件（仓库内路径，优先于 defconfig；留空不用）"
         default: ""
+      drop_techpack:
+        description: "砍掉 techpack（camera/audio，Image 里能占 15MB）"
+        type: boolean
+        default: false
       no_ksu:
         description: "只编 Droidspaces（不要 KernelSU，用于排查启动失败）"
         type: boolean
@@ -85,6 +89,7 @@ jobs:
             --repo "${{ inputs.repo }}" --branch "${{ inputs.branch }}" \
             --defconfig "${{ inputs.defconfig }}" --ksu-tag "${{ inputs.ksu_tag }}" \
             ${{ inputs.no_ksu && '--no-ksu' || '' }} \
+            ${{ inputs.drop_techpack && '--drop-techpack' || '' }} \
             ${{ inputs.defconfig_file != '' && format('--defconfig-file {0}', inputs.defconfig_file) || '' }}
           ./verify.sh --tree "work/${{ inputs.branch }}" --defconfig "${{ inputs.defconfig }}"
 
@@ -96,6 +101,7 @@ jobs:
             --repo "${{ inputs.repo }}" --branch "${{ inputs.branch }}" \
             --defconfig "${{ inputs.defconfig }}" --ksu-tag "${{ inputs.ksu_tag }}" \
             ${{ inputs.no_ksu && '--no-ksu' || '' }} \
+            ${{ inputs.drop_techpack && '--drop-techpack' || '' }} \
             ${{ inputs.defconfig_file != '' && format('--defconfig-file {0}', inputs.defconfig_file) || '' }} \
             -j "$(nproc)"
 

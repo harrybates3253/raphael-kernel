@@ -40,6 +40,7 @@ KIT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORK="${WORK:-$KIT_DIR/work}"
 TREE_DIR=""
 DEFCONFIG_FILE=""
+DROP_TECHPACK="${DROP_TECHPACK:-0}"
 OUT_REL="out"
 CHECK_ONLY=0
 WITH_KSU=1
@@ -59,6 +60,7 @@ while [ $# -gt 0 ]; do
     --branch) BRANCH="$2"; shift ;;
     --defconfig) DEFCONFIG="$2"; shift ;;
     --defconfig-file) DEFCONFIG_FILE="$2"; shift ;;
+    --drop-techpack) DROP_TECHPACK=1 ;;
     --ksu-tag) KSU_TAG="$2"; shift ;;
     --ksu-fallbacks) KSU_FALLBACKS="$2"; shift ;;
     --tree) TREE_DIR="$2"; shift ;;
@@ -136,6 +138,15 @@ log "应用 Droidspaces non-GKI 补丁"
 apply_patch "$KIT_DIR/patches/02.fix_restore_cgroup_file_prefix_handling_.patch"
 # xt_qtaguid 崩溃补丁：只对仍然带 xt_qtaguid.c 的老树（3.18/4.4）有意义
 apply_patch "$KIT_DIR/patches/01.fix_kernel_panic_in_xt_qtaguid.patch"
+
+# ---------------- 2.5 可选：砍掉 techpack（高通 camera/audio，Image 里能占 15MB）----------------
+if [ "$DROP_TECHPACK" = 1 ] && [ -d techpack ]; then
+  if grep -qE "^drivers-y.*techpack/" Makefile; then
+    sed -i '/^drivers-y/s# techpack/##' Makefile
+    log "已从顶层 Makefile 移除 techpack/（体积优化）"
+  fi
+  grep -n "^drivers-y" Makefile | head -1
+fi
 
 # ---------------- 3. KernelSU ----------------
 # 做成函数是因为 main 在 4.14 上编不过时要能原地换 tag（见第 7 段 smoke）
