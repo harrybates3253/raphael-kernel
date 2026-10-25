@@ -43,6 +43,7 @@ DEFCONFIG_FILE=""
 DROP_TECHPACK="${DROP_TECHPACK:-0}"
 USE_LLD="${USE_LLD:-0}"
 SLIM="${SLIM:-0}"
+BASELINE="${BASELINE:-0}"
 OUT_REL="out"
 CHECK_ONLY=0
 WITH_KSU=1
@@ -65,6 +66,7 @@ while [ $# -gt 0 ]; do
     --drop-techpack) DROP_TECHPACK=1 ;;
     --lld) USE_LLD=1 ;;
     --slim) SLIM=1 ;;
+    --baseline) BASELINE=1 ;;
     --ksu-tag) KSU_TAG="$2"; shift ;;
     --ksu-fallbacks) KSU_FALLBACKS="$2"; shift ;;
     --tree) TREE_DIR="$2"; shift ;;
@@ -223,7 +225,12 @@ fi
 # 所以这里走确定性路线：defconfig 生成 out/.config -> 追加 fragment（后出现的值覆盖前面的）
 # -> olddefconfig 让 Kconfig 重新算依赖。
 mkdir -p arch/arm64/configs/vendor
+if [ "$BASELINE" = 1 ]; then
+  : > arch/arm64/configs/vendor/droidspaces.config    # 空 fragment：纯基线，用来量体积
+  log "baseline 模式：不叠加 Droidspaces fragment（只量体积）"
+else
 cp "$KIT_DIR/configs/droidspaces-raphael.config" arch/arm64/configs/vendor/droidspaces.config
+fi
 if [ "$WITH_KSU" = 0 ]; then
   { echo ""; echo "# ---- no-ksu: 子模块在，但不启用 ----"; echo "# CONFIG_KSU is not set"; } \
     >> arch/arm64/configs/vendor/droidspaces.config
@@ -318,8 +325,13 @@ gate() {  # 返回缺失项数量
   echo "$fail"
 }
 
+if [ "$BASELINE" = 1 ]; then
+  log "baseline 模式：跳过配置闸门"
+  fail=0
+else
 printf '%-34s %s\n' "配置项" "结果"
 fail="$(gate | tail -1)"
+fi
 if [ "${fail:-0}" -ne 0 ]; then
   warn "第一轮有 $fail 项没落地，追加到 .config 后 olddefconfig 兜底"
   {
