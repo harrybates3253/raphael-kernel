@@ -583,7 +583,7 @@ case "$KERNEL_BLOB" in
   *.gz-dtb|*.gz) cp "$IMG" "$AK/$(basename "$KERNEL_BLOB")" ;;   # 已经自带 gz(+dtb)
   *)             gzip -9 -n -c "$IMG" > "$AK/Image.gz" ;;
 esac
-ls -lh "$AK/Image.gz"
+ls -lh "$AK"/Image* 2>/dev/null || true
 # 机型白名单 + 说明有 KSU
 sed -i 's/^device.name1=.*/device.name1=raphael/' "$AK/anykernel.sh"
 sed -i 's/^device.name2=.*/device.name2=cepheus/' "$AK/anykernel.sh"
