@@ -268,7 +268,7 @@ if [ "$WITH_KSU" = 0 ]; then
     >> arch/arm64/configs/vendor/droidspaces.config
 fi
 # CPU mask 三项在不同树里类型不同（int vs string），基础 defconfig 已给值时不要覆盖
-if grep -qE '^CONFIG_(LITTLE|BIG|PRIME)_CPU_MASK=' "$CFG" 2>/dev/null; then
+if grep -qE '^CONFIG_(LITTLE|BIG|PRIME)_CPU_MASK=' "$OUT_REL/.config" 2>/dev/null; then
   sed -i -e '/^CONFIG_LITTLE_CPU_MASK=/d' -e '/^CONFIG_BIG_CPU_MASK=/d' -e '/^CONFIG_PRIME_CPU_MASK=/d' \
     arch/arm64/configs/vendor/droidspaces.config
   log "基础 config 已带 CPU mask，fragment 中对应三行已移除"

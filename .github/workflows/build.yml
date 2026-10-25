@@ -130,9 +130,13 @@ jobs:
           curl -sSL --retry 5 --retry-all-errors -o mandisa.7z "$URL"
           7z x -y mandisa.7z -o"$RUNNER_TEMP/mandisa" >/dev/null
           find "$RUNNER_TEMP/mandisa" -maxdepth 3 -name clang -type f | head -3
-          CDIR=$(dirname "$(find "$RUNNER_TEMP/mandisa" -maxdepth 3 -name clang -type f | head -1)")
-          echo "CLANG_DIR=$CDIR" >> $GITHUB_ENV
-          "$CDIR/clang" --version | head -2
+          CDIR=$(dirname "$(find "$RUNNER_TEMP/mandisa" -type f -name clang -path "*/bin/*" | head -1)")
+          if [ -x "$CDIR/clang" ]; then
+            echo "CLANG_DIR=$CDIR" >> $GITHUB_ENV
+            "$CDIR/clang" --version | head -2
+          else
+            echo "::warning::Mandisa clang 没找到，回落到 AOSP clang"
+          fi
 
       - name: Configure + config gate (--check)
         env:
