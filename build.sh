@@ -267,6 +267,12 @@ if [ "$WITH_KSU" = 0 ]; then
   { echo ""; echo "# ---- no-ksu: 子模块在，但不启用 ----"; echo "# CONFIG_KSU is not set"; } \
     >> arch/arm64/configs/vendor/droidspaces.config
 fi
+# CPU mask 三项在不同树里类型不同（int vs string），基础 defconfig 已给值时不要覆盖
+if grep -qE '^CONFIG_(LITTLE|BIG|PRIME)_CPU_MASK=' "$CFG" 2>/dev/null; then
+  sed -i -e '/^CONFIG_LITTLE_CPU_MASK=/d' -e '/^CONFIG_BIG_CPU_MASK=/d' -e '/^CONFIG_PRIME_CPU_MASK=/d' \
+    arch/arm64/configs/vendor/droidspaces.config
+  log "基础 config 已带 CPU mask，fragment 中对应三行已移除"
+fi
 if [ -n "$LOCALVERSION" ]; then
   cat >> arch/arm64/configs/vendor/droidspaces.config <<LOCVER
 
@@ -378,7 +384,10 @@ gate() {  # 返回缺失项数量
     else printf '%-34s \033[31m应当关闭却开着\033[0m\n' "$o"; fail=$((fail+1)); fi
   done
   for o in $MUST_SET; do
-    if grep -qE "^${o}=[0-9]+$" "$CFG"; then [ "${QUIET:-0}" = 1 ] || printf '%-34s \033[32mOK(set)\033[0m\n' "$o"
+    if ! grep -qE "^${o}=|^# ${o} is not set" "$CFG"; then
+      [ "${QUIET:-0}" = 1 ] || printf '%-34s \033[33mSKIP(树里没有)\033[0m\n' "$o"
+    elif grep -qE "^${o}=[^\"]*[0-9]" "$CFG"; then
+      [ "${QUIET:-0}" = 1 ] || printf '%-34s \033[32mOK(set)\033[0m\n' "$o"
     else printf '%-34s \033[31m空值(会卡 silentoldconfig)\033[0m\n' "$o"; fail=$((fail+1)); fi
   done
   echo "$fail"
