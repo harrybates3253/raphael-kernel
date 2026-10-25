@@ -41,6 +41,7 @@ WORK="${WORK:-$KIT_DIR/work}"
 TREE_DIR=""
 DEFCONFIG_FILE=""
 DROP_TECHPACK="${DROP_TECHPACK:-0}"
+USE_LLD="${USE_LLD:-0}"
 OUT_REL="out"
 CHECK_ONLY=0
 WITH_KSU=1
@@ -61,6 +62,7 @@ while [ $# -gt 0 ]; do
     --defconfig) DEFCONFIG="$2"; shift ;;
     --defconfig-file) DEFCONFIG_FILE="$2"; shift ;;
     --drop-techpack) DROP_TECHPACK=1 ;;
+    --lld) USE_LLD=1 ;;
     --ksu-tag) KSU_TAG="$2"; shift ;;
     --ksu-fallbacks) KSU_FALLBACKS="$2"; shift ;;
     --tree) TREE_DIR="$2"; shift ;;
@@ -346,8 +348,16 @@ case "$TOOLCHAIN_MODE" in
       else
         warn "没有 arm-linux-gnueabi-gcc，跳过 CROSS_COMPILE_ARM32（ARM32 vdso 可能不编）"
       fi
-      MAKE_ARGS=(O="$OUT_REL" ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu-
-                 CROSS_COMPILE=aarch64-linux-gnu- $ARM32_ARG)
+      if [ "$USE_LLD" = 1 ]; then
+        # 和 Rikka 那颗一致：clang + LLD（他的 Image 28.1MiB，我们是 GNU ld 出 38MiB）
+        MAKE_ARGS=(O="$OUT_REL" ARCH=arm64 CC=clang LD=ld.lld AR=llvm-ar NM=llvm-nm
+                   OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip
+                   CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- $ARM32_ARG)
+        log "使用 LLD 链接"
+      else
+        MAKE_ARGS=(O="$OUT_REL" ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu-
+                   CROSS_COMPILE=aarch64-linux-gnu- $ARM32_ARG)
+      fi
     fi
     ;;
 esac

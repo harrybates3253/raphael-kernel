@@ -24,6 +24,10 @@ on:
       defconfig_file:
         description: "外部 config 文件（仓库内路径，优先于 defconfig；留空不用）"
         default: ""
+      use_lld:
+        description: "用 LLD 链接（和 Rikka 的构建方式一致，通常更小）"
+        type: boolean
+        default: true
       drop_techpack:
         description: "砍掉 techpack（camera/audio，Image 里能占 15MB）"
         type: boolean
@@ -72,7 +76,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential bc bison flex libssl-dev libelf-dev lz4 cpio python3 curl \
-            unzip zip patch git gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+            unzip zip patch git gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu lld llvm
           # armel 交叉 gcc 不是必须（只有 vdso32 才会用到），装不上不算失败
           sudo apt-get install -y --no-install-recommends gcc-arm-linux-gnueabi \
             || echo "::warning::gcc-arm-linux-gnueabi 装不上，CROSS_COMPILE_ARM32 会跳过"
@@ -90,6 +94,7 @@ jobs:
             --defconfig "${{ inputs.defconfig }}" --ksu-tag "${{ inputs.ksu_tag }}" \
             ${{ inputs.no_ksu && '--no-ksu' || '' }} \
             ${{ inputs.drop_techpack && '--drop-techpack' || '' }} \
+            ${{ inputs.use_lld && '--lld' || '' }} \
             ${{ inputs.defconfig_file != '' && format('--defconfig-file {0}', inputs.defconfig_file) || '' }}
           ./verify.sh --tree "work/${{ inputs.branch }}" --defconfig "${{ inputs.defconfig }}"
 
@@ -102,6 +107,7 @@ jobs:
             --defconfig "${{ inputs.defconfig }}" --ksu-tag "${{ inputs.ksu_tag }}" \
             ${{ inputs.no_ksu && '--no-ksu' || '' }} \
             ${{ inputs.drop_techpack && '--drop-techpack' || '' }} \
+            ${{ inputs.use_lld && '--lld' || '' }} \
             ${{ inputs.defconfig_file != '' && format('--defconfig-file {0}', inputs.defconfig_file) || '' }} \
             -j "$(nproc)"
 
