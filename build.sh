@@ -50,6 +50,8 @@ USE_IAS="${USE_IAS:-0}"
 NO_MEDIA="${NO_MEDIA:-0}"
 LOCALVERSION="${LOCALVERSION:-}"
 NO_MODVERSIONS="${NO_MODVERSIONS:-0}"
+BUILD_TARGET="${BUILD_TARGET:-Image}"
+KERNEL_BLOB="${KERNEL_BLOB:-Image}"
 OUT_REL="out"
 CHECK_ONLY=0
 WITH_KSU=1
@@ -78,6 +80,8 @@ while [ $# -gt 0 ]; do
     --ias) USE_IAS=1 ;;
     --no-media) NO_MEDIA=1 ;;
     --localversion) LOCALVERSION="$2"; shift ;;
+    --target) BUILD_TARGET="$2"; shift ;;
+    --kernel-blob) KERNEL_BLOB="$2"; shift ;;
     --no-modversions) NO_MODVERSIONS=1 ;;
     --ksu-tag) KSU_TAG="$2"; shift ;;
     --ksu-fallbacks) KSU_FALLBACKS="$2"; shift ;;
@@ -528,13 +532,13 @@ if [ "$WITH_KSU" = 1 ]; then
   log "最终使用的 KernelSU: $KSU_USED"
 fi
 
-log "开始编译 Image  (jobs=$JOBS, mode=$TOOLCHAIN_MODE)"
+IMG="$TREE/$OUT_REL/arch/arm64/boot/$KERNEL_BLOB"
+log "开始编译 $BUILD_TARGET  (jobs=$JOBS, mode=$TOOLCHAIN_MODE, blob=$KERNEL_BLOB)"
 START=$(date +%s)
 set -o pipefail
-make -j"$JOBS" "${MAKE_ARGS[@]}" Image 2>&1 | tee "$WORK/build.log" | grep -E "error|Error|warning: .*(implicit|incompatible)|LD |CC |AS |Kernel: arch" || true
+make -j"$JOBS" "${MAKE_ARGS[@]}" "$BUILD_TARGET" 2>&1 | tee "$WORK/build.log" | grep -E "error|Error|warning: .*(implicit|incompatible)|LD |CC |AS |Kernel: arch" || true
 set +o pipefail
-if ! grep -qE "^  (Image|Kernel: arch/arm64/boot/Image) is ready" "$WORK/build.log" && \
-   [ ! -f "$OUT_REL/arch/arm64/boot/Image" ]; then
+if ! grep -qE "is ready" "$WORK/build.log" && [ ! -f "$IMG" ]; then
   echo "================ build.log 里的错误行 ================"
   grep -nE "error:|Error [0-9]|\*\*\*|undefined reference|No rule|not found" "$WORK/build.log" | tail -40 || true
   echo "================ build.log 最后 120 行 ================"
@@ -543,7 +547,6 @@ if ! grep -qE "^  (Image|Kernel: arch/arm64/boot/Image) is ready" "$WORK/build.l
   die "编译失败（上面的错误行就是真因；完整日志 $WORK/build.log，也随 artifact 上传）"
 fi
 ELAPSED=$(( $(date +%s) - START ))
-IMG="$TREE/$OUT_REL/arch/arm64/boot/Image"
 [ -f "$IMG" ] || die "没产出 $IMG"
 log "编译完成，用时 $((ELAPSED/60))m$((ELAPSED%60))s"
 ls -lh "$IMG"
@@ -555,7 +558,10 @@ AK="$WORK/AnyKernel3"
 [ -d "$AK/.git" ] || git clone --depth=1 https://github.com/Kernel-SU/AnyKernel3.git "$AK" >/dev/null 2>&1 || die "AnyKernel3 克隆失败"
 # 实机 boot.img 里 kernel 是 gzip（1f8b）；raw 44MB Image 直接塞进去
 # 有可能超过 bootloader 的 kernel 缓冲上限 -> 卡 logo 重启。这里统一压成 Image.gz
-gzip -9 -n -c "$IMG" > "$AK/Image.gz"
+case "$KERNEL_BLOB" in
+  *.gz-dtb|*.gz) cp "$IMG" "$AK/$(basename "$KERNEL_BLOB")" ;;   # 已经自带 gz(+dtb)
+  *)             gzip -9 -n -c "$IMG" > "$AK/Image.gz" ;;
+esac
 ls -lh "$AK/Image.gz"
 # 机型白名单 + 说明有 KSU
 sed -i 's/^device.name1=.*/device.name1=raphael/' "$AK/anykernel.sh"

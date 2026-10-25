@@ -24,6 +24,13 @@ on:
       defconfig_file:
         description: "外部 config 文件（仓库内路径，优先于 defconfig；留空不用）"
         default: ""
+      mandisa:
+        description: "下载并使用 Mandisa clang（酷安配方）"
+        type: boolean
+        default: false
+      target:
+        description: "编译目标（默认 Image；高通内置 DTB 用 Image.gz-dtb）"
+        default: "Image"
       localversion:
         description: "CONFIG_LOCALVERSION（对齐厂商模块 vermagic，例如 -Rikka-V6-20241003-2344）"
         default: ""
@@ -107,13 +114,25 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential bc bison flex libssl-dev libelf-dev lz4 cpio python3 curl \
-            unzip zip patch git gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu lld llvm
+            unzip zip patch git p7zip-full gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu lld llvm
           # armel 交叉 gcc 不是必须（只有 vdso32 才会用到），装不上不算失败
           sudo apt-get install -y --no-install-recommends gcc-arm-linux-gnueabi \
             || echo "::warning::gcc-arm-linux-gnueabi 装不上，CROSS_COMPILE_ARM32 会跳过"
           aarch64-linux-gnu-gcc --version | head -1
           aarch64-linux-gnu-ld --version | head -1
           df -h / | tail -1
+
+      - name: Download Mandisa clang (optional)
+        if: ${{ inputs.mandisa }}
+        run: |
+          set -e
+          URL="https://github.com/Mandi-Sa/clang/releases/download/amd64-kernel-arm_static-24/llvm24.0.0-binutils2.46.1_amd64-kernel-arm_static-20260823.7z"
+          curl -sSL --retry 5 --retry-all-errors -o mandisa.7z "$URL"
+          7z x -y mandisa.7z -o"$RUNNER_TEMP/mandisa" >/dev/null
+          find "$RUNNER_TEMP/mandisa" -maxdepth 3 -name clang -type f | head -3
+          CDIR=$(dirname "$(find "$RUNNER_TEMP/mandisa" -maxdepth 3 -name clang -type f | head -1)")
+          echo "CLANG_DIR=$CDIR" >> $GITHUB_ENV
+          "$CDIR/clang" --version | head -2
 
       - name: Configure + config gate (--check)
         env:
@@ -132,6 +151,8 @@ jobs:
             ${{ inputs.aosp_clang && '--aosp-clang' || '' }} \
             ${{ inputs.no_media && '--no-media' || '' }} \
             ${{ inputs.localversion != '' && format('--localversion {0}', inputs.localversion) || '' }} \
+            ${{ inputs.target != 'Image' && format('--target {0} --kernel-blob {0}', inputs.target) || '' }} \
+            ${{ inputs.mandisa && '--clang-dir "$CLANG_DIR"' || '' }} \
             ${{ inputs.no_modversions && '--no-modversions' || '' }} \
             ${{ inputs.ias && '--ias' || '' }} \
             ${{ inputs.defconfig_file != '' && format('--defconfig-file {0}', inputs.defconfig_file) || '' }}
@@ -153,6 +174,8 @@ jobs:
             ${{ inputs.aosp_clang && '--aosp-clang' || '' }} \
             ${{ inputs.no_media && '--no-media' || '' }} \
             ${{ inputs.localversion != '' && format('--localversion {0}', inputs.localversion) || '' }} \
+            ${{ inputs.target != 'Image' && format('--target {0} --kernel-blob {0}', inputs.target) || '' }} \
+            ${{ inputs.mandisa && '--clang-dir "$CLANG_DIR"' || '' }} \
             ${{ inputs.no_modversions && '--no-modversions' || '' }} \
             ${{ inputs.ias && '--ias' || '' }} \
             ${{ inputs.defconfig_file != '' && format('--defconfig-file {0}', inputs.defconfig_file) || '' }} \
