@@ -226,7 +226,15 @@ fi
 # -> olddefconfig 让 Kconfig 重新算依赖。
 mkdir -p arch/arm64/configs/vendor
 if [ "$BASELINE" = 1 ]; then
-  : > arch/arm64/configs/vendor/droidspaces.config    # 空 fragment：纯基线，用来量体积
+  # 纯基线，只补两件“不补就编不动”的东西：
+  #   1) 三个无默认值的 int（否则 silentoldconfig aborted）
+  #   2) 树内 KSU 需要 KPROBES=n（否则 ksud.c 不定义 hook bools）
+  cat > arch/arm64/configs/vendor/droidspaces.config <<'BASECFG'
+CONFIG_LITTLE_CPU_MASK=15
+CONFIG_BIG_CPU_MASK=112
+CONFIG_PRIME_CPU_MASK=128
+# CONFIG_KPROBES is not set
+BASECFG
   log "baseline 模式：不叠加 Droidspaces fragment（只量体积）"
 else
 cp "$KIT_DIR/configs/droidspaces-raphael.config" arch/arm64/configs/vendor/droidspaces.config
