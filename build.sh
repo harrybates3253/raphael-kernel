@@ -49,6 +49,7 @@ FORCE_AOSP_CLANG="${FORCE_AOSP_CLANG:-0}"
 USE_IAS="${USE_IAS:-0}"
 NO_MEDIA="${NO_MEDIA:-0}"
 NO_EARLY_WAKEUP="${NO_EARLY_WAKEUP:-0}"
+RSC_CLK_STATE="${RSC_CLK_STATE:-0}"
 LOCALVERSION="${LOCALVERSION:-}"
 NO_MODVERSIONS="${NO_MODVERSIONS:-0}"
 BUILD_TARGET="${BUILD_TARGET:-Image}"
@@ -81,6 +82,7 @@ while [ $# -gt 0 ]; do
     --ias) USE_IAS=1 ;;
     --no-media) NO_MEDIA=1 ;;
     --no-early-wakeup) NO_EARLY_WAKEUP=1 ;;
+    --rsc-clk-state) RSC_CLK_STATE=1 ;;
     --localversion) LOCALVERSION="$2"; shift ;;
     --target) BUILD_TARGET="$2"; shift ;;
     --kernel-blob) KERNEL_BLOB="$2"; shift ;;
@@ -171,6 +173,23 @@ if 'KIT_EARLY_WAKEUP_DISABLED' not in s:
         print('WARN: 没找到 sde_encoder_trigger_early_wakeup')
 PYEOF
   log "已禁用 sde_encoder_trigger_early_wakeup（解决 sde fence 重复 signal）"
+fi
+
+# Rikka 的树把 RSC 状态无条件设成 SDE_RSC_CLK_STATE；HeliumStudio 的树保留了
+# CMD/VID 状态机。CMD 状态下唤醒要多等一个 vsync，导致"帧 5ms 画完、却 90ms 后才上屏"。
+if [ "$RSC_CLK_STATE" = 1 ] && [ -f drivers/gpu/drm/msm/sde/sde_encoder.c ]; then
+  python3 - <<'PYEOF'
+p='drivers/gpu/drm/msm/sde/sde_encoder.c'
+s=open(p, encoding='utf-8', errors='replace').read()
+if 'KIT_RSC_FORCE_CLK' not in s and '\tSDE_EVT32(rsc_state, qsync_mode);' in s:
+    s = s.replace('\tSDE_EVT32(rsc_state, qsync_mode);',
+                  '\t/* KIT_RSC_FORCE_CLK */\n\trsc_state = SDE_RSC_CLK_STATE;\n\tSDE_EVT32(rsc_state, qsync_mode);', 1)
+    open(p,'w',encoding='utf-8').write(s)
+    print('patched: rsc_state forced to SDE_RSC_CLK_STATE')
+else:
+    print('WARN: rsc patch 未应用')
+PYEOF
+  log "已强制 RSC = CLK_STATE（对齐 Rikka 树行为）"
 fi
 
 # ---------------- 2. 补丁 ----------------
