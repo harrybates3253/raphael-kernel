@@ -133,6 +133,12 @@ jobs:
           aarch64-linux-gnu-ld --version | head -1
           df -h / | tail -1
 
+      - name: ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          max-size: 2G
+          key: ${{ inputs.repo }}-${{ inputs.branch }}-${{ inputs.defconfig }}-${{ inputs.target }}
+
       - name: Download Mandisa clang (optional)
         if: ${{ inputs.mandisa }}
         run: |
@@ -153,6 +159,7 @@ jobs:
         env:
           CLANG_VER: ${{ inputs.clang }}
           KSU_SETUP_URL: ${{ inputs.ksu_url }}
+          CC_PREFIX: ccache
         run: |
           chmod +x build.sh verify.sh flash-backup.sh
           ./build.sh --check \
@@ -180,6 +187,7 @@ jobs:
         env:
           CLANG_VER: ${{ inputs.clang }}
           KSU_SETUP_URL: ${{ inputs.ksu_url }}
+          CC_PREFIX: ccache
         run: |
           ./build.sh \
             --repo "${{ inputs.repo }}" --branch "${{ inputs.branch }}" \

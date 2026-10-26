@@ -102,6 +102,11 @@ done
 
 # ARCH 必须在生成 .config 之前就 export：make raphael_stock_defconfig 会用 SRCARCH 去
 # arch/$(SRCARCH)/configs/ 找文件，不设 ARCH 就变成 arch/x86/configs -> 直接报 No rule
+if [ -n "${CC_PREFIX:-}" ]; then
+  export CC="${CC_PREFIX} ${CC:-clang}"
+  export HOSTCC="${CC_PREFIX} ${HOSTCC:-gcc}"
+  echo "[build] CC=$CC  HOSTCC=$HOSTCC"
+fi
 export ARCH=arm64 SUBARCH=arm64
 
 log()  { printf '\033[1;36m[%s]\033[0m %s\n' "$(date +%H:%M:%S)" "$*"; }
