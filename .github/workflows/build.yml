@@ -41,6 +41,10 @@ on:
         description: "关闭 CONFIG_MODVERSIONS（跨编译器 CRC 不可能一致）"
         type: boolean
         default: true
+      no_early_wakeup:
+        description: "禁用 early-wakeup 额外踢帧（修 sde fence 重复 signal 掉帧）"
+        type: boolean
+        default: true
       no_media:
         description: "关掉 camera/vidc（image_size 瘦身）"
         type: boolean
@@ -158,6 +162,7 @@ jobs:
             ${{ inputs.tiny && '--tiny' || '' }} \
             ${{ inputs.aosp_clang && '--aosp-clang' || '' }} \
             ${{ inputs.no_media && '--no-media' || '' }} \
+            ${{ inputs.no_early_wakeup && '--no-early-wakeup' || '' }} \
             ${{ inputs.localversion != '' && format('--localversion {0}', inputs.localversion) || '' }} \
             ${{ inputs.target != 'Image' && format('--target {0} --kernel-blob {0}', inputs.target) || '' }} \
             ${{ inputs.mandisa && '--clang-dir "$CLANG_DIR"' || '' }} \
@@ -182,6 +187,7 @@ jobs:
             ${{ inputs.tiny && '--tiny' || '' }} \
             ${{ inputs.aosp_clang && '--aosp-clang' || '' }} \
             ${{ inputs.no_media && '--no-media' || '' }} \
+            ${{ inputs.no_early_wakeup && '--no-early-wakeup' || '' }} \
             ${{ inputs.localversion != '' && format('--localversion {0}', inputs.localversion) || '' }} \
             ${{ inputs.target != 'Image' && format('--target {0} --kernel-blob {0}', inputs.target) || '' }} \
             ${{ inputs.mandisa && '--clang-dir "$CLANG_DIR"' || '' }} \

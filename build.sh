@@ -48,6 +48,7 @@ TINY="${TINY:-0}"
 FORCE_AOSP_CLANG="${FORCE_AOSP_CLANG:-0}"
 USE_IAS="${USE_IAS:-0}"
 NO_MEDIA="${NO_MEDIA:-0}"
+NO_EARLY_WAKEUP="${NO_EARLY_WAKEUP:-0}"
 LOCALVERSION="${LOCALVERSION:-}"
 NO_MODVERSIONS="${NO_MODVERSIONS:-0}"
 BUILD_TARGET="${BUILD_TARGET:-Image}"
@@ -79,6 +80,7 @@ while [ $# -gt 0 ]; do
     --aosp-clang) FORCE_AOSP_CLANG=1 ;;
     --ias) USE_IAS=1 ;;
     --no-media) NO_MEDIA=1 ;;
+    --no-early-wakeup) NO_EARLY_WAKEUP=1 ;;
     --localversion) LOCALVERSION="$2"; shift ;;
     --target) BUILD_TARGET="$2"; shift ;;
     --kernel-blob) KERNEL_BLOB="$2"; shift ;;
@@ -148,6 +150,27 @@ if [ -f scripts/dtc/yamltree.c ] && ! grep -q "HOSTLOADLIBES_dtc" scripts/dtc/Ma
   echo 'HOSTLOADLIBES_dtc += -lyaml' >> scripts/dtc/Makefile
   echo 'HOSTLOADLIBES_dtc-lexer += -lyaml' >> scripts/dtc/Makefile
   log "已给 scripts/dtc/Makefile 补 -lyaml"
+fi
+
+# HeliumStudio(4.14.356) 的 sde_kms_enable_vblank 里会在每次 vblank 请求时调用
+# sde_encoder_trigger_early_wakeup()，等于额外踢一帧；vendor HWC 不认这套，
+# dmesg 就会刷 [sde error]extra signal attempt，整机掉帧。
+# 这里把该函数改成空实现（保留符号，避免链接问题）。
+if [ "$NO_EARLY_WAKEUP" = 1 ] && [ -f drivers/gpu/drm/msm/sde/sde_encoder.c ]; then
+  python3 - <<'PYEOF'
+import re, io
+p='drivers/gpu/drm/msm/sde/sde_encoder.c'
+s=open(p, encoding='utf-8', errors='replace').read()
+if 'KIT_EARLY_WAKEUP_DISABLED' not in s:
+    m=re.search(r'(void\s+sde_encoder_trigger_early_wakeup\s*\([^)]*\)\s*\{)\s*\n', s)
+    if m:
+        s=s[:m.end()] + '\t/* KIT_EARLY_WAKEUP_DISABLED */\n\treturn;\n' + s[m.end():]
+        open(p,'w',encoding='utf-8').write(s)
+        print('patched sde_encoder_trigger_early_wakeup -> noop')
+    else:
+        print('WARN: 没找到 sde_encoder_trigger_early_wakeup')
+PYEOF
+  log "已禁用 sde_encoder_trigger_early_wakeup（解决 sde fence 重复 signal）"
 fi
 
 # ---------------- 2. 补丁 ----------------
