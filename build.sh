@@ -50,6 +50,7 @@ USE_IAS="${USE_IAS:-0}"
 NO_MEDIA="${NO_MEDIA:-0}"
 NO_EARLY_WAKEUP="${NO_EARLY_WAKEUP:-0}"
 RSC_CLK_STATE="${RSC_CLK_STATE:-0}"
+DEFAULT_DIM_LUT="${DEFAULT_DIM_LUT:-0}"
 LOCALVERSION="${LOCALVERSION:-}"
 NO_MODVERSIONS="${NO_MODVERSIONS:-0}"
 BUILD_TARGET="${BUILD_TARGET:-Image}"
@@ -83,6 +84,7 @@ while [ $# -gt 0 ]; do
     --no-media) NO_MEDIA=1 ;;
     --no-early-wakeup) NO_EARLY_WAKEUP=1 ;;
     --rsc-clk-state) RSC_CLK_STATE=1 ;;
+    --default-dim-lut) DEFAULT_DIM_LUT=1 ;;
     --localversion) LOCALVERSION="$2"; shift ;;
     --target) BUILD_TARGET="$2"; shift ;;
     --kernel-blob) KERNEL_BLOB="$2"; shift ;;
@@ -195,6 +197,17 @@ else:
     print('WARN: rsc patch 未应用')
 PYEOF
   log "已强制 RSC = CLK_STATE（对齐 Rikka 树行为）"
+fi
+
+# 这套 ROM 的 dtbo 里，面板节点没有 qcom,disp-fod-dim-lut / qcom,disp-dc-dim-lut，
+# 而本树的 dsi-staging 驱动强依赖它们（缺失 -> alpha 恒 0）：
+#   · FOD 区域不做局部调亮 -> 指纹录入失败
+#   · DC/极低亮度下的 dim layer 不生效 -> 各图层亮度不一致（状态栏暗、应用亮）
+# 解法：把树内 dtsi 里小米官方的两张 LUT 作为内置默认值编进驱动。
+if [ "$DEFAULT_DIM_LUT" = 1 ] && [ -f drivers/gpu/drm/msm/dsi-staging/dsi_panel.c ]; then
+  KIT_DIR="$(cd "$(dirname "$0")" && pwd)"
+  python3 "$KIT_DIR/patches/default-dim-lut.py" || log "WARN: dim lut 注入失败（不阻塞编译）"
+  log "已注入内置 dim LUT（FOD/DC）"
 fi
 
 # ---------------- 2. 补丁 ----------------
