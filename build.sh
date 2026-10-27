@@ -205,7 +205,6 @@ fi
 #   · DC/极低亮度下的 dim layer 不生效 -> 各图层亮度不一致（状态栏暗、应用亮）
 # 解法：把树内 dtsi 里小米官方的两张 LUT 作为内置默认值编进驱动。
 if [ "$DEFAULT_DIM_LUT" = 1 ] && [ -f drivers/gpu/drm/msm/dsi-staging/dsi_panel.c ]; then
-  KIT_DIR="$(cd "$(dirname "$0")" && pwd)"
   python3 "$KIT_DIR/patches/default-dim-lut.py" || log "WARN: dim lut 注入失败（不阻塞编译）"
   log "已注入内置 dim LUT（FOD/DC）"
 fi
