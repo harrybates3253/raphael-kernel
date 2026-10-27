@@ -51,6 +51,7 @@ NO_MEDIA="${NO_MEDIA:-0}"
 NO_EARLY_WAKEUP="${NO_EARLY_WAKEUP:-0}"
 RSC_CLK_STATE="${RSC_CLK_STATE:-0}"
 DEFAULT_DIM_LUT="${DEFAULT_DIM_LUT:-1}"
+PINCTRL_LENIENT="${PINCTRL_LENIENT:-1}"
 LOCALVERSION="${LOCALVERSION:-}"
 NO_MODVERSIONS="${NO_MODVERSIONS:-0}"
 BUILD_TARGET="${BUILD_TARGET:-Image}"
@@ -85,6 +86,7 @@ while [ $# -gt 0 ]; do
     --no-early-wakeup) NO_EARLY_WAKEUP=1 ;;
     --rsc-clk-state) RSC_CLK_STATE=1 ;;
     --default-dim-lut) DEFAULT_DIM_LUT=1 ;;
+    --pinctrl-lenient) PINCTRL_LENIENT=1 ;;
     --localversion) LOCALVERSION="$2"; shift ;;
     --target) BUILD_TARGET="$2"; shift ;;
     --kernel-blob) KERNEL_BLOB="$2"; shift ;;
@@ -207,6 +209,11 @@ fi
 if [ "$DEFAULT_DIM_LUT" = 1 ] && [ -f drivers/gpu/drm/msm/dsi-staging/dsi_panel.c ]; then
   python3 "$KIT_DIR/patches/default-dim-lut.py" || log "WARN: dim lut 注入失败（不阻塞编译）"
   log "已注入内置 dim LUT（FOD/DC）"
+fi
+
+# 指纹录不进：pinctrl 组配置失败会让整个 state 回滚（goodix 上电时序失败）
+if [ "$PINCTRL_LENIENT" = 1 ] && [ -f drivers/pinctrl/qcom/pinctrl-msm.c ]; then
+  python3 "$KIT_DIR/patches/pinctrl-lenient.py" || log "WARN: pinctrl 放宽失败（不阻塞编译）"
 fi
 
 # ---------------- 2. 补丁 ----------------

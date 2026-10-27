@@ -41,6 +41,10 @@ on:
         description: "关闭 CONFIG_MODVERSIONS（跨编译器 CRC 不可能一致）"
         type: boolean
         default: true
+      pinctrl_lenient:
+        description: "pinctrl 对不支持的 pinconf 参数宽容（修指纹上电时序）"
+        type: boolean
+        default: true
       default_dim_lut:
         description: "注入内置 FOD/DC dim LUT（修指纹录入与图层亮度不一致）"
         type: boolean
@@ -180,6 +184,7 @@ jobs:
             ${{ inputs.no_early_wakeup && '--no-early-wakeup' || '' }} \
             ${{ inputs.rsc_clk_state && '--rsc-clk-state' || '' }} \
             ${{ inputs.default_dim_lut && '--default-dim-lut' || '' }} \
+            ${{ inputs.pinctrl_lenient && '--pinctrl-lenient' || '' }} \
             ${{ inputs.localversion != '' && format('--localversion {0}', inputs.localversion) || '' }} \
             ${{ inputs.target != 'Image' && format('--target {0} --kernel-blob {0}', inputs.target) || '' }} \
             ${{ inputs.mandisa && '--clang-dir "$CLANG_DIR"' || '' }} \
@@ -208,6 +213,7 @@ jobs:
             ${{ inputs.no_early_wakeup && '--no-early-wakeup' || '' }} \
             ${{ inputs.rsc_clk_state && '--rsc-clk-state' || '' }} \
             ${{ inputs.default_dim_lut && '--default-dim-lut' || '' }} \
+            ${{ inputs.pinctrl_lenient && '--pinctrl-lenient' || '' }} \
             ${{ inputs.localversion != '' && format('--localversion {0}', inputs.localversion) || '' }} \
             ${{ inputs.target != 'Image' && format('--target {0} --kernel-blob {0}', inputs.target) || '' }} \
             ${{ inputs.mandisa && '--clang-dir "$CLANG_DIR"' || '' }} \
