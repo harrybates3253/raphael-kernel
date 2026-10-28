@@ -55,6 +55,7 @@ PINCTRL_LENIENT="${PINCTRL_LENIENT:-1}"
 DEBUGFS="${DEBUGFS:-1}"
 DISP_PARAM="${DISP_PARAM:-1}"
 BACKLIGHT_HBM="${BACKLIGHT_HBM:-1}"
+GOODIX_VENDOR="${GOODIX_VENDOR:-1}"
 LOCALVERSION="${LOCALVERSION:-}"
 NO_MODVERSIONS="${NO_MODVERSIONS:-0}"
 BUILD_TARGET="${BUILD_TARGET:-Image}"
@@ -93,6 +94,7 @@ while [ $# -gt 0 ]; do
     --debugfs) DEBUGFS=1 ;;
     --disp-param) DISP_PARAM=1 ;;
     --backlight-hbm) BACKLIGHT_HBM=1 ;;
+    --goodix-vendor) GOODIX_VENDOR=1 ;;
     --localversion) LOCALVERSION="$2"; shift ;;
     --target) BUILD_TARGET="$2"; shift ;;
     --kernel-blob) KERNEL_BLOB="$2"; shift ;;
@@ -193,6 +195,11 @@ fi
 # 指纹 HAL 会写 /sys/class/drm/card0-DSI-1/disp_param 请求 HBM，本树没这个节点
 if [ "$DISP_PARAM" = 1 ] && [ -f drivers/gpu/drm/msm/sde/sde_connector.c ]; then
   python3 "$KIT_DIR/patches/disp-param-sysfs.py" || log "WARN: disp_param 注入失败（不阻塞编译）"
+fi
+
+# 本树自带的 goodix 驱动缺 HAL 需要的私有 ioctl -> 换成小米官方实现
+if [ "$GOODIX_VENDOR" = 1 ] && [ -d drivers/input/fingerprint/goodix_ta ]; then
+  python3 "$KIT_DIR/patches/goodix-vendor-driver.py" || log "WARN: goodix 驱动替换失败（不阻塞编译）"
 fi
 
 # backlight 只允许到 2047，指纹 HAL 写 4095 请求 HBM 会被 clamp -> 指纹不亮
