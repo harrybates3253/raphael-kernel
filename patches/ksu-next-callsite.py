@@ -39,9 +39,15 @@ def main():
             out = []
             hit = False
             for line in src.split('\n'):
-                if (not line.lstrip().startswith('//')) and any(s + '(' in line for s in NEXT_ONLY):
+                stripped = line.strip()
+                is_decl = ('extern' in stripped) or stripped.endswith(',') or stripped.endswith('(')
+                is_stmt = stripped.endswith(';') and not is_decl
+                if (not stripped.startswith('//')
+                        and not stripped.startswith('/*')
+                        and is_stmt
+                        and any(sym + '(' in line for sym in NEXT_ONLY)):
                     indent = line[:len(line) - len(line.lstrip())]
-                    out.append(indent + '/* kit: removed next-only call */ // ' + line.strip())
+                    out.append(indent + '/* kit: removed next-only call */ // ' + stripped)
                     hit = True
                 else:
                     out.append(line)
