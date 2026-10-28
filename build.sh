@@ -53,6 +53,7 @@ RSC_CLK_STATE="${RSC_CLK_STATE:-0}"
 DEFAULT_DIM_LUT="${DEFAULT_DIM_LUT:-1}"
 PINCTRL_LENIENT="${PINCTRL_LENIENT:-1}"
 DEBUGFS="${DEBUGFS:-1}"
+DISP_PARAM="${DISP_PARAM:-1}"
 LOCALVERSION="${LOCALVERSION:-}"
 NO_MODVERSIONS="${NO_MODVERSIONS:-0}"
 BUILD_TARGET="${BUILD_TARGET:-Image}"
@@ -89,6 +90,7 @@ while [ $# -gt 0 ]; do
     --default-dim-lut) DEFAULT_DIM_LUT=1 ;;
     --pinctrl-lenient) PINCTRL_LENIENT=1 ;;
     --debugfs) DEBUGFS=1 ;;
+    --disp-param) DISP_PARAM=1 ;;
     --localversion) LOCALVERSION="$2"; shift ;;
     --target) BUILD_TARGET="$2"; shift ;;
     --kernel-blob) KERNEL_BLOB="$2"; shift ;;
@@ -184,6 +186,11 @@ if 'KIT_EARLY_WAKEUP_DISABLED' not in s:
         print('WARN: 没找到 sde_encoder_trigger_early_wakeup')
 PYEOF
   log "已禁用 sde_encoder_trigger_early_wakeup（解决 sde fence 重复 signal）"
+fi
+
+# 指纹 HAL 会写 /sys/class/drm/card0-DSI-1/disp_param 请求 HBM，本树没这个节点
+if [ "$DISP_PARAM" = 1 ] && [ -f drivers/gpu/drm/msm/sde/sde_connector.c ]; then
+  python3 "$KIT_DIR/patches/disp-param-sysfs.py" || log "WARN: disp_param 注入失败（不阻塞编译）"
 fi
 
 # Rikka 的树把 RSC 状态无条件设成 SDE_RSC_CLK_STATE；HeliumStudio 的树保留了
