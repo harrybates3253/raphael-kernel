@@ -53,6 +53,7 @@ RSC_CLK_STATE="${RSC_CLK_STATE:-0}"
 DEFAULT_DIM_LUT="${DEFAULT_DIM_LUT:-0}"
 PINCTRL_LENIENT="${PINCTRL_LENIENT:-0}"
 DEBUGFS="${DEBUGFS:-1}"
+CLK_ORPHAN_FIX="${CLK_ORPHAN_FIX:-1}"
 DISP_PARAM="${DISP_PARAM:-0}"
 BACKLIGHT_HBM="${BACKLIGHT_HBM:-0}"
 GOODIX_VENDOR="${GOODIX_VENDOR:-0}"
@@ -92,6 +93,7 @@ while [ $# -gt 0 ]; do
     --default-dim-lut) DEFAULT_DIM_LUT=1 ;;
     --pinctrl-lenient) PINCTRL_LENIENT=1 ;;
     --debugfs) DEBUGFS=1 ;;
+    --clk-orphan-fix) CLK_ORPHAN_FIX=1 ;;
     --disp-param) DISP_PARAM=1 ;;
     --backlight-hbm) BACKLIGHT_HBM=1 ;;
     --goodix-vendor) GOODIX_VENDOR=1 ;;
@@ -190,6 +192,11 @@ if 'KIT_EARLY_WAKEUP_DISABLED' not in s:
         print('WARN: 没找到 sde_encoder_trigger_early_wakeup')
 PYEOF
   log "已禁用 sde_encoder_trigger_early_wakeup（解决 sde fence 重复 signal）"
+fi
+
+# 部分树（bool-x）在开 DEBUG_FS 后 clk.c 引用未定义的 orphan_list
+if [ "$CLK_ORPHAN_FIX" = 1 ]; then
+  python3 "$KIT_DIR/patches/clk-orphan-fix.py" || log "WARN: clk orphan_list 修正失败（不阻塞编译）"
 fi
 
 # 指纹 HAL 会写 /sys/class/drm/card0-DSI-1/disp_param 请求 HBM，本树没这个节点
