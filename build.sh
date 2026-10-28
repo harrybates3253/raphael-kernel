@@ -316,6 +316,16 @@ setup_ksu() {   # $1 = tag/分支
       ln -sfn ../KernelSU/kernel drivers/kernelsu
       log "setup.sh 未建成链接，已补 drivers/kernelsu -> ../KernelSU/kernel"
     fi
+    # 有的树给 drivers/Kconfig 写的是 drivers/kernelsu/kernel/Kconfig，
+    # 但我们链接的是 KernelSU/kernel（Kconfig 就在这一层），需要纠正路径
+    if [ -f drivers/Kconfig ] && grep -q 'drivers/kernelsu/kernel/Kconfig' drivers/Kconfig; then
+      sed -i 's|drivers/kernelsu/kernel/Kconfig|drivers/kernelsu/Kconfig|' drivers/Kconfig
+      log "已纠正 drivers/Kconfig 里的 kernelsu Kconfig 路径"
+    fi
+    if [ -f drivers/Makefile ] && grep -q 'kernelsu/kernel' drivers/Makefile; then
+      sed -i 's|kernelsu/kernel|kernelsu|' drivers/Makefile
+      log "已纠正 drivers/Makefile 里的 kernelsu 路径"
+    fi
     [ -L drivers/kernelsu ] || [ -d drivers/kernelsu ] || return 1
   fi
   # 分支自带 kernel_compat.h（backslashxx 分支）就不用我们的 shim，避免重复 typedef
