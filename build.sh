@@ -305,9 +305,17 @@ setup_ksu() {   # $1 = tag/分支
         { echo "  切不到 $tag（现有 tag: $(git tag | tail -5 | tr '\n' ' ')）"; exit 1; }
       git log -1 --format='  当前 KernelSU: %h %s' ) || return 1
   else
+    # 树里自带 kernelsu（bool-x 的 KSU Next）时必须先清掉，否则 setup.sh 的 ln -s 会撞到同名目录
+    for d in drivers/kernelsu drivers/staging/kernelsu; do
+      { [ -e "$d" ] || [ -L "$d" ]; } && { rm -rf "$d"; log "已移除自带 $d（改用外部 KernelSU）"; }
+    done
     log "集成 KernelSU ($tag)"
     curl -LSs "$KSU_SETUP_URL" -o "$WORK/ksu-setup.sh" || return 1
     sh "$WORK/ksu-setup.sh" "$tag" || return 1
+    if [ ! -e drivers/kernelsu ] && [ -d KernelSU/kernel ]; then
+      ln -sfn ../KernelSU/kernel drivers/kernelsu
+      log "setup.sh 未建成链接，已补 drivers/kernelsu -> ../KernelSU/kernel"
+    fi
     [ -L drivers/kernelsu ] || [ -d drivers/kernelsu ] || return 1
   fi
   # 分支自带 kernel_compat.h（backslashxx 分支）就不用我们的 shim，避免重复 typedef
