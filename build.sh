@@ -568,8 +568,19 @@ case "$TOOLCHAIN_MODE" in
     if [ ! -x "$CL/clang" ]; then
       log "下载 AOSP $CLANG_VER（约 300MB）"
       mkdir -p "$WORK/toolchains/$CLANG_VER"
-      curl -LSs "$CLANG_URL_BASE/$CLANG_VER.tar.gz" -o "$WORK/$CLANG_VER.tar.gz" || die "clang 下载失败"
-      tar -xf "$WORK/$CLANG_VER.tar.gz" -C "$WORK/toolchains/$CLANG_VER" || die "clang 解压失败"
+      ok=0
+      for _try in 1 2 3; do
+        if curl -LSs --retry 5 --retry-all-errors -m 900 "$CLANG_URL_BASE/$CLANG_VER.tar.gz" -o "$WORK/$CLANG_VER.tar.gz" \
+           && tar -xf "$WORK/$CLANG_VER.tar.gz" -C "$WORK/toolchains/$CLANG_VER" 2>/dev/null \
+           && [ -x "$WORK/toolchains/$CLANG_VER/bin/clang" ]; then ok=1; break; fi
+        log "clang 下载/解压第 $_try 次失败，重试"
+        rm -rf "$WORK/toolchains/$CLANG_VER"; mkdir -p "$WORK/toolchains/$CLANG_VER"
+        sleep 5
+      done
+      if [ "$ok" != 1 ]; then
+        log "WARN: AOSP $CLANG_VER 取不到，回退到宿主 clang（$(command -v clang || echo 无)）"
+        CL=""   # 用 PATH 里的 clang
+      fi
     fi
     export PATH="$CL:$PATH"
     if [ "$TOOLCHAIN_MODE" = "llvm" ]; then
