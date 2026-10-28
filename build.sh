@@ -52,6 +52,7 @@ NO_EARLY_WAKEUP="${NO_EARLY_WAKEUP:-0}"
 RSC_CLK_STATE="${RSC_CLK_STATE:-0}"
 DEFAULT_DIM_LUT="${DEFAULT_DIM_LUT:-1}"
 PINCTRL_LENIENT="${PINCTRL_LENIENT:-1}"
+DEBUGFS="${DEBUGFS:-0}"
 LOCALVERSION="${LOCALVERSION:-}"
 NO_MODVERSIONS="${NO_MODVERSIONS:-0}"
 BUILD_TARGET="${BUILD_TARGET:-Image}"
@@ -87,6 +88,7 @@ while [ $# -gt 0 ]; do
     --rsc-clk-state) RSC_CLK_STATE=1 ;;
     --default-dim-lut) DEFAULT_DIM_LUT=1 ;;
     --pinctrl-lenient) PINCTRL_LENIENT=1 ;;
+    --debugfs) DEBUGFS=1 ;;
     --localversion) LOCALVERSION="$2"; shift ;;
     --target) BUILD_TARGET="$2"; shift ;;
     --kernel-blob) KERNEL_BLOB="$2"; shift ;;
@@ -346,6 +348,15 @@ if grep -qE '^CONFIG_(LITTLE|BIG|PRIME)_CPU_MASK=[0-9"]' "$OUT_REL/.config" 2>/d
   sed -i -e '/^CONFIG_LITTLE_CPU_MASK=/d' -e '/^CONFIG_BIG_CPU_MASK=/d' -e '/^CONFIG_PRIME_CPU_MASK=/d' \
     arch/arm64/configs/vendor/droidspaces.config
   log "基础 config 已带 CPU mask，fragment 中对应三行已移除"
+fi
+if [ "$DEBUGFS" = 1 ]; then
+  cat >> arch/arm64/configs/vendor/droidspaces.config <<'DFSCFG'
+
+# ---- debugfs：厂商 HWC/displayfeature 会读写 /sys/kernel/debug/dri/0/debug/* ----
+CONFIG_DEBUG_FS=y
+CONFIG_DEBUG_FS_ALLOW_ALL=y
+DFSCFG
+  log "已启用 CONFIG_DEBUG_FS"
 fi
 if [ -n "$LOCALVERSION" ]; then
   cat >> arch/arm64/configs/vendor/droidspaces.config <<LOCVER
