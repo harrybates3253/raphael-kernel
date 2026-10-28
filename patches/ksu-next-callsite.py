@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
-"""把树里 KSU Next 专有的调用点注释掉，避免和官方 KernelSU 链接冲突。
+"""把树里 KSU Next 专有的调用替换成 0，避免与官方 KernelSU 链接冲突。
 
-现象：bool-x 这类的 fs/exec.c 里有 `ksu_handle_execve_ksud(...)`（Next 独有），
-      换成官方 v0.9.5 后该符号不存在 -> ld.lld: undefined symbol。
-做法：在 drivers/kernelsu 之外，把 ksu_handle_* 的 Next 专有调用整行注释掉。
+现象：bool-x 的 fs/exec.c、fs/read_write.c 调用了 Next 独有符号
+      （ksu_handle_execve_ksud / ksu_handle_vfs_read ...），换官方 v0.9.5 后
+      ld.lld 报 undefined symbol；简单注释行会破坏多行调用/if 结构。
+
+做法：做括号配对的替换——把 `sym( ... )` 整个调用表达式替换成 `0`，
+      语法保持合法（`if (0)`、`(void)0;`、`x = 0;` 都能编）。
 """
 import os
-import re
 import sys
 
-# 只处理 Next 专有的符号名（官方 v0.9.x 用的是 ksu_handle_execveat 等）
 NEXT_ONLY = (
     'ksu_handle_execve_ksud',
     'ksu_handle_vfs_read',
@@ -17,16 +18,48 @@ NEXT_ONLY = (
     'ksu_handle_stat',
     'ksu_handle_devpts',
 )
-SKIP_DIRS = {'drivers/kernelsu', 'drivers/staging/kernelsu', 'KernelSU'}
+SKIP_PREFIX = ('./drivers/kernelsu', './drivers/staging/kernelsu', './KernelSU', './.git')
+
+
+def strip_calls(src):
+    changed = 0
+    for sym in NEXT_ONLY:
+        i = 0
+        while True:
+            i = src.find(sym + '(', i)
+            if i < 0:
+                break
+            # 跳过声明行（extern ...）
+            line_start = src.rfind('\n', 0, i) + 1
+            prefix = src[line_start:i]
+            if 'extern' in prefix:
+                i += len(sym)
+                continue
+            # 找配对右括号
+            depth = 0
+            j = src.find('(', i)
+            k = j
+            while k < len(src):
+                ch = src[k]
+                if ch == '(':
+                    depth += 1
+                elif ch == ')':
+                    depth -= 1
+                    if depth == 0:
+                        break
+                k += 1
+            if k >= len(src):
+                break
+            src = src[:i] + '0' + src[k + 1:]
+            changed += 1
+            i += 1
+    return src, changed
 
 
 def main():
-    changed = 0
+    total = 0
     for root, dirs, files in os.walk('.'):
-        rel = root.lstrip('./')
-        if any(rel.startswith(s) for s in SKIP_DIRS):
-            continue
-        if '/.git' in root or root.startswith('./.git'):
+        if any(root.startswith(p) for p in SKIP_PREFIX):
             continue
         for fn in files:
             if not fn.endswith(('.c', '.h')):
@@ -36,26 +69,14 @@ def main():
                 src = open(path, encoding='utf-8', errors='replace').read()
             except OSError:
                 continue
-            out = []
-            hit = False
-            for line in src.split('\n'):
-                stripped = line.strip()
-                is_decl = ('extern' in stripped) or stripped.endswith(',') or stripped.endswith('(')
-                is_stmt = stripped.endswith(';') and not is_decl
-                if (not stripped.startswith('//')
-                        and not stripped.startswith('/*')
-                        and is_stmt
-                        and any(sym + '(' in line for sym in NEXT_ONLY)):
-                    indent = line[:len(line) - len(line.lstrip())]
-                    out.append(indent + '/* kit: removed next-only call */ // ' + stripped)
-                    hit = True
-                else:
-                    out.append(line)
-            if hit:
-                open(path, 'w', encoding='utf-8').write('\n'.join(out))
-                changed += 1
-                print('[ksu] 注释掉 Next 专有调用:', path)
-    if not changed:
+            if not any(s in src for s in NEXT_ONLY):
+                continue
+            new, n = strip_calls(src)
+            if n:
+                open(path, 'w', encoding='utf-8').write(new)
+                total += n
+                print('[ksu] %-40s 替换 %d 处 Next 调用为 0' % (path, n))
+    if not total:
         print('[ksu] 没有需要处理的 Next 调用点')
     return 0
 
