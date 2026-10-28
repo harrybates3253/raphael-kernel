@@ -328,6 +328,9 @@ setup_ksu() {   # $1 = tag/分支
     fi
     [ -L drivers/kernelsu ] || [ -d drivers/kernelsu ] || return 1
   fi
+  # 树里 KSU Next 专有的 ksu_handle_* 调用点会和官方 KernelSU 冲突（undefined symbol）
+  python3 "$KIT_DIR/patches/ksu-next-callsite.py" || warn "KSU Next 调用点清理失败"
+
   # 分支自带 kernel_compat.h（backslashxx 分支）就不用我们的 shim，避免重复 typedef
   if [ -f drivers/kernelsu/kernel_compat.h ]; then
     log "KSU 自带 kernel/kernel_compat.h，跳过 4.14 shim"
