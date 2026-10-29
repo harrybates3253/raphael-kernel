@@ -69,11 +69,18 @@ def stub_hook_bools(src):
     changed = 0
     out = []
     pat = re.compile(r'^(?P<indent>\s*)extern\s+bool\s+(?P<name>' + '|'.join(HOOK_BOOLS) + r')\s*(?:__read_mostly)?\s*;\s*$')
+    seen = set()
     for line in src.split('\n'):
         m = pat.match(line)
         if m:
-            out.append('%sstatic const bool %s __maybe_unused = false; /* kit: stub */'
-                       % (m.group('indent'), m.group('name')))
+            name = m.group('name')
+            if name in seen:
+                # 同一文件里重复声明：直接删掉，避免 redefinition
+                out.append('%s/* kit: duplicate decl of %s removed */' % (m.group('indent'), name))
+            else:
+                seen.add(name)
+                out.append('%sstatic const bool %s __maybe_unused = false; /* kit: stub */'
+                           % (m.group('indent'), name))
             changed += 1
         else:
             out.append(line)
