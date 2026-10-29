@@ -9,6 +9,7 @@
       语法保持合法（`if (0)`、`(void)0;`、`x = 0;` 都能编）。
 """
 import os
+import re
 import sys
 
 NEXT_ONLY = (
@@ -61,17 +62,19 @@ HOOK_BOOLS = ('ksu_vfs_read_hook', 'ksu_execveat_hook', 'ksu_input_hook',
 
 
 def stub_hook_bools(src):
-    """把 `extern bool ksu_xxx_hook;` 换成文件内 static const，避免链接缺符号。"""
+    """把 `extern bool ksu_xxx_hook [__read_mostly];` 换成文件内 static const。
+
+    实际写法带属性：`extern bool ksu_vfs_read_hook __read_mostly;`
+    """
     changed = 0
     out = []
+    pat = re.compile(r'^(?P<indent>\s*)extern\s+bool\s+(?P<name>' + '|'.join(HOOK_BOOLS) + r')\s*(?:__read_mostly)?\s*;\s*$')
     for line in src.split('\n'):
-        st = line.strip()
-        for name in HOOK_BOOLS:
-            if st in ('extern bool %s;' % name, 'extern int %s;' % name):
-                indent = line[:len(line) - len(line.lstrip())]
-                out.append(indent + 'static const bool %s = false; /* kit: stub */' % name)
-                changed += 1
-                break
+        m = pat.match(line)
+        if m:
+            out.append('%sstatic const bool %s __maybe_unused = false; /* kit: stub */'
+                       % (m.group('indent'), m.group('name')))
+            changed += 1
         else:
             out.append(line)
     return '\n'.join(out), changed
