@@ -506,7 +506,7 @@ check_opt() {
 MUST_Y="CONFIG_SYSVIPC CONFIG_POSIX_MQUEUE CONFIG_NAMESPACES CONFIG_PID_NS CONFIG_UTS_NS CONFIG_IPC_NS
 CONFIG_SECCOMP CONFIG_SECCOMP_FILTER CONFIG_CGROUPS CONFIG_CGROUP_DEVICE CONFIG_CGROUP_PIDS CONFIG_MEMCG
 CONFIG_DEVTMPFS CONFIG_OVERLAY_FS CONFIG_TMPFS_XATTR CONFIG_NET_NS CONFIG_VETH CONFIG_BRIDGE
-CONFIG_USER_NS CONFIG_MACVLAN CONFIG_IP6_NF_NAT CONFIG_KALLSYMS_ALL CONFIG_MODULES"
+CONFIG_USER_NS CONFIG_MACVLAN CONFIG_IP6_NF_NAT CONFIG_MODULES"
 if [ "${KSU_MODE:-external}" != "submodule" ]; then
   MUST_Y="$MUST_Y CONFIG_KPROBES"
 else
@@ -521,6 +521,11 @@ gate() {  # 返回缺失项数量
   for o in $MUST_Y; do
     if check_opt "$o" y; then [ "${QUIET:-0}" = 1 ] || printf '%-34s \033[32mOK\033[0m\n' "$o"
     else printf '%-34s \033[31mMISSING\033[0m\n' "$o"; fail=$((fail+1)); fi
+  done
+  # 便利项：缺了只告警，不阻塞（KALLSYMS_ALL 与容器能力无关）
+  for o in CONFIG_KALLSYMS_ALL; do
+    if check_opt "$o" y; then [ "${QUIET:-0}" = 1 ] || printf '%-34s \033[32mOK\033[0m\n' "$o"
+    else printf '%-34s \033[33mWARN(可选)\033[0m\n' "$o"; fi
   done
   for o in $MUST_N; do
     if check_opt "$o" n; then [ "${QUIET:-0}" = 1 ] || printf '%-34s \033[32mOK(off)\033[0m\n' "$o"
