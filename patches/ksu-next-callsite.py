@@ -56,6 +56,27 @@ def strip_calls(src):
     return src, changed
 
 
+HOOK_BOOLS = ('ksu_vfs_read_hook', 'ksu_execveat_hook', 'ksu_input_hook',
+              'ksu_init_rc_hook', 'ksu_input_event_hook')
+
+
+def stub_hook_bools(src):
+    """把 `extern bool ksu_xxx_hook;` 换成文件内 static const，避免链接缺符号。"""
+    changed = 0
+    out = []
+    for line in src.split('\n'):
+        st = line.strip()
+        for name in HOOK_BOOLS:
+            if st in ('extern bool %s;' % name, 'extern int %s;' % name):
+                indent = line[:len(line) - len(line.lstrip())]
+                out.append(indent + 'static const bool %s = false; /* kit: stub */' % name)
+                changed += 1
+                break
+        else:
+            out.append(line)
+    return '\n'.join(out), changed
+
+
 def main():
     total = 0
     for root, dirs, files in os.walk('.'):
@@ -72,10 +93,11 @@ def main():
             if not any(s in src for s in NEXT_ONLY):
                 continue
             new, n = strip_calls(src)
-            if n:
+            new, n2 = stub_hook_bools(new)
+            if n or n2:
                 open(path, 'w', encoding='utf-8').write(new)
-                total += n
-                print('[ksu] %-40s 替换 %d 处 Next 调用为 0' % (path, n))
+                total += n + n2
+                print('[ksu] %-40s 调用 %d 处 / hook 变量 %d 处' % (path, n, n2))
     if not total:
         print('[ksu] 没有需要处理的 Next 调用点')
     return 0
