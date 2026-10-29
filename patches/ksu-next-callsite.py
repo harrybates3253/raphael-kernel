@@ -18,6 +18,8 @@ NEXT_ONLY = (
     'ksu_handle_fstat',
     'ksu_handle_stat',
     'ksu_handle_devpts',
+    'ksu_handle_input_handle_event',
+    'ksu_handle_input_event',
 )
 SKIP_PREFIX = ('./drivers/kernelsu', './drivers/staging/kernelsu', './KernelSU', './.git')
 
@@ -100,7 +102,7 @@ def main():
                 src = open(path, encoding='utf-8', errors='replace').read()
             except OSError:
                 continue
-            if not any(s in src for s in NEXT_ONLY):
+            if not any(s in src for s in NEXT_ONLY) and not any(h in src for h in HOOK_BOOLS):
                 continue
             new, n = strip_calls(src)
             new, n2 = stub_hook_bools(new)
