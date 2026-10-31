@@ -493,6 +493,22 @@ done
 make -s O="$OUT_REL" olddefconfig >/dev/null 2>&1 || true
 log "CPU mask 已强制写入 15/112/128 并重跑 olddefconfig"
 
+# 官方 KernelSU 在 4.14 非 GKI 上只能靠 kprobe：KPROBES 依赖 MODULES，
+# 有些树把 MODULES 关了导致 KPROBES 被 kconfig 丢弃（编出来没 root）。
+if [ "$NO_KSU" != 1 ] && grep -q "^config KPROBES" arch/Kconfig 2>/dev/null; then
+  for kv in CONFIG_MODULES=y CONFIG_KPROBES=y CONFIG_KALLSYMS=y CONFIG_KALLSYMS_ALL=y; do
+    k="${kv%%=*}"
+    sed -i -e "/^${k}=/d" -e "/^# ${k} is not set/d" "$CFG"
+    echo "$kv" >> "$CFG"
+  done
+  make -s O="$OUT_REL" olddefconfig >/dev/null 2>&1 || true
+  if grep -qE "^CONFIG_KPROBES=y" "$CFG"; then
+    log "已强制 CONFIG_MODULES/KPROBES/KALLSYMS_ALL=y（官方 KernelSU 需要 kprobe）"
+  else
+    warn "KPROBES 仍未落地（该树可能不支持 kprobe），KernelSU 可能无 root"
+  fi
+fi
+
 # ---------------- 5. 配置硬闸门（不过就自愈一次，再不过就停）----------------
 check_opt() {
   local o="$1" want="$2" got
