@@ -332,10 +332,12 @@ setup_ksu() {   # $1 = tag/分支
   # 树里 KSU Next 专有的 ksu_handle_* 调用点会和官方 KernelSU 冲突（undefined symbol）
   python3 "$KIT_DIR/patches/ksu-next-callsite.py" || warn "KSU Next 调用点清理失败"
 
-  # 分支自带 kernel_compat.h（backslashxx 分支）就不用我们的 shim，避免重复 typedef
+  # 即使 KSU 自带 kernel_compat.h，MODULE_IMPORT_NS / syscall_fn_t 这些 4.17+ 的东西
+  # 仍可能没覆盖到（官方 v1.0.1 就在 ksu.c:97 报错）→ shim 一律跑，幂等且带 #ifndef 保护
   if [ -f drivers/kernelsu/kernel_compat.h ]; then
-    log "KSU 自带 kernel/kernel_compat.h，跳过 4.14 shim"
-  else
+    log "KSU 自带 kernel/kernel_compat.h，仍补跑 4.14 shim（幂等）"
+  fi
+  if true; then
     python3 "$KIT_DIR/patch-ksu-legacy.py" "$TREE" >"$WORK/ksu-shim.log" 2>&1 && \
       log "KSU 兼容补丁: $(tail -1 "$WORK/ksu-shim.log")" || warn "KSU 兼容补丁有告警，见 $WORK/ksu-shim.log"
   fi
