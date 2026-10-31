@@ -13,13 +13,7 @@ import re
 import sys
 
 NEXT_ONLY = (
-    'ksu_handle_execve_ksud',
-    'ksu_handle_vfs_read',
-    'ksu_handle_fstat',
-    'ksu_handle_stat',
-    'ksu_handle_devpts',
-    'ksu_handle_input_handle_event',
-    'ksu_handle_input_event',
+    'ksu_handle_execve_ksud',      # Next 专有（官方用 ksu_handle_execveat）
 )
 SKIP_PREFIX = ('./drivers/kernelsu', './drivers/staging/kernelsu', './KernelSU', './.git')
 
@@ -105,8 +99,8 @@ def main():
             if not any(s in src for s in NEXT_ONLY) and not any(h in src for h in HOOK_BOOLS):
                 continue
             new, n = strip_calls(src)
-            new, n2 = stub_hook_bools(new)
-            if n or n2:
+            n2 = 0
+            if n:
                 open(path, 'w', encoding='utf-8').write(new)
                 total += n + n2
                 print('[ksu] %-40s 调用 %d 处 / hook 变量 %d 处' % (path, n, n2))
