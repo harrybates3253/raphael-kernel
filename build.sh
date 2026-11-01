@@ -541,6 +541,12 @@ gate() {  # 返回缺失项数量
     if check_opt "$o" y; then [ "${QUIET:-0}" = 1 ] || printf '%-34s \033[32mOK\033[0m\n' "$o"
     else printf '%-34s \033[31mMISSING\033[0m\n' "$o"; fail=$((fail+1)); fi
   done
+  # ROM 走 sdcardfs 存储栈：树里有 fs/sdcardfs 就必须编上，否则 vold 退回 FUSE+bind，
+  # /data 缺 project_quota -> setproject 失败 -> Android/data/<pkg> 权限错乱 -> 应用 EACCES
+  if [ -f fs/sdcardfs/Kconfig ]; then
+    if check_opt CONFIG_SDCARD_FS y; then [ "${QUIET:-0}" = 1 ] || printf '%-34s \033[32mOK\033[0m\n' CONFIG_SDCARD_FS
+    else printf '%-34s \033[31mMISSING(存储栈会坏)\033[0m\n' CONFIG_SDCARD_FS; fail=$((fail+1)); fi
+  fi
   # 便利项：缺了只告警，不阻塞（KALLSYMS_ALL 与容器能力无关）
   for o in CONFIG_KALLSYMS_ALL; do
     if check_opt "$o" y; then [ "${QUIET:-0}" = 1 ] || printf '%-34s \033[32mOK\033[0m\n' "$o"
