@@ -153,7 +153,10 @@ jobs:
           set -e
           URL="https://github.com/Mandi-Sa/clang/releases/download/amd64-kernel-arm_static-24/llvm24.0.0-binutils2.46.1_amd64-kernel-arm_static-20260823.7z"
           curl -sSL --retry 5 --retry-all-errors -o mandisa.7z "$URL"
-          7z x -y mandisa.7z -o"$RUNNER_TEMP/mandisa" >/dev/null
+          # 新版 7z 会把 clang++/clang-cl 这类"符号链接指向符号链接"判定为危险并返回 2，
+          # set -e 下直接整步失败。-snld 关掉该检查，再兜一层 || true。
+          7z x -y -snld mandisa.7z -o"$RUNNER_TEMP/mandisa" >/dev/null 2>&1 || \
+            7z x -y mandisa.7z -o"$RUNNER_TEMP/mandisa" >/dev/null 2>&1 || true
           find "$RUNNER_TEMP/mandisa" -maxdepth 3 -name clang -type f | head -3
           CDIR=$(dirname "$(find "$RUNNER_TEMP/mandisa" -type f -name clang -path "*/bin/*" | head -1)")
           if [ -x "$CDIR/clang" ]; then
